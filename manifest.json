@@ -1,14 +1,15 @@
 {
   "domain": "familienzentrale",
   "name": "Familienzentrale",
+  "after_dependencies": ["calendar", "notify"],
   "codeowners": ["@BitBattler"],
   "config_flow": true,
-  "dependencies": ["person"],
+  "dependencies": ["frontend", "http", "panel_custom", "person"],
   "documentation": "https://github.com/BitBattler/Dealy-Home",
   "integration_type": "service",
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/BitBattler/Dealy-Home/issues",
   "requirements": [],
   "single_config_entry": true,
-  "version": "0.1.0"
+  "version": "0.2.0"
 }

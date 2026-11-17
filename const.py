@@ -5,12 +5,24 @@ from __future__ import annotations
 from typing import Final
 
 DOMAIN: Final = "familienzentrale"
+VERSION: Final = "0.2.0"
 
 # Optionen (Setup-Seite)
 CONF_MODULES: Final = "module"
 CONF_PERSONS: Final = "personen"
 CONF_PIN: Final = "pin"
 CONF_COLOR: Final = "farbe"
+CONF_KEYWORDS: Final = "stichwoerter"
+CONF_NOTIFY: Final = "benachrichtigung"
+CONF_CALENDARS: Final = "kalender"
+CONF_PUSH_DAYS: Final = "push_tage"
+
+DEFAULT_PUSH_DAYS: Final = 180
+
+# Panel
+PANEL_URL: Final = "familienzentrale"
+STATIC_URL: Final = "/familienzentrale_static"
+PANEL_COMPONENT: Final = "familienzentrale-panel"
 
 # Alle Module: Schlüssel -> (Name, Icon)
 # Ein Modul ist aktiv, wenn sein Schlüssel in den Optionen unter CONF_MODULES steht.
@@ -46,3 +58,11 @@ def rgb_to_hex(rgb: list[int] | tuple[int, ...] | None) -> str:
     if not rgb or len(rgb) < 3:
         return "#9e9e9e"
     return "#{:02x}{:02x}{:02x}".format(*(max(0, min(255, int(c))) for c in rgb[:3]))
+
+
+def stichwoerter(cfg: dict) -> list[str]:
+    """Stichwörter einer Person als Liste (gespeichert als Text 'Niilo, 👦')."""
+    roh = cfg.get(CONF_KEYWORDS) or ""
+    if isinstance(roh, list):
+        return [w.strip() for w in roh if str(w).strip()]
+    return [w.strip() for w in str(roh).split(",") if w.strip()]

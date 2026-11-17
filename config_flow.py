@@ -19,6 +19,9 @@ from homeassistant.helpers.selector import (
     ColorRGBSelector,
     EntitySelector,
     EntitySelectorConfig,
+    NumberSelector,
+    NumberSelectorConfig,
+    NumberSelectorMode,
     SelectOptionDict,
     SelectSelector,
     SelectSelectorConfig,
@@ -29,16 +32,22 @@ from homeassistant.helpers.selector import (
 )
 
 from .const import (
+    CONF_CALENDARS,
     CONF_COLOR,
+    CONF_KEYWORDS,
     CONF_MODULES,
+    CONF_NOTIFY,
     CONF_PERSONS,
     CONF_PIN,
+    CONF_PUSH_DAYS,
     DEFAULT_COLORS,
+    DEFAULT_PUSH_DAYS,
     DOMAIN,
     MODULES,
 )
 
 PIN_MUSTER = re.compile(r"^\d{4,8}$")
+KEINE = "-"
 
 
 class FamilienzentraleConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -67,10 +76,12 @@ class FamilienzentraleConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class FamilienzentraleOptionsFlow(OptionsFlow):
-    """Setup-Seite: Module, Personen & Farben, Kindersicherung."""
+    """Setup-Seite: Module, Personen, Kalender, Kindersicherung."""
 
     def __init__(self) -> None:
         self._personen: list[str] = []
+        self._index = 0
+        self._neu: dict[str, dict[str, Any]] = {}
 
     def _speichern(self, **aenderungen: Any) -> ConfigFlowResult:
         return self.async_create_entry(data={**self.config_entry.options, **aenderungen})
@@ -78,7 +89,7 @@ class FamilienzentraleOptionsFlow(OptionsFlow):
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         return self.async_show_menu(
             step_id="init",
-            menu_options=["module", "personen", "kindersicherung"],
+            menu_options=["module", "personen", "kalender", "kindersicherung"],
         )
 
     # --- Module an/aus ------------------------------------------------------
@@ -105,13 +116,15 @@ class FamilienzentraleOptionsFlow(OptionsFlow):
             ),
         )
 
-    # --- Personen & Farben --------------------------------------------------
+    # --- Personen: Auswahl, dann pro Person Farbe / Stichwörter / Handy ----
     async def async_step_personen(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if user_input is not None:
             self._personen = user_input.get(CONF_PERSONS, [])
+            self._index = 0
+            self._neu = {}
             if not self._personen:
                 return self._speichern(**{CONF_PERSONS: {}})
-            return await self.async_step_farben()
+            return await self.async_step_person()
 
         aktuell = list(self.config_entry.options.get(CONF_PERSONS, {}))
         return self.async_show_form(
@@ -125,28 +138,86 @@ class FamilienzentraleOptionsFlow(OptionsFlow):
             ),
         )
 
-    async def async_step_farben(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        alt: dict[str, dict[str, Any]] = self.config_entry.options.get(CONF_PERSONS, {})
+    def _handys(self) -> list[SelectOptionDict]:
+        dienste = sorted(
+            s for s in self.hass.services.async_services_for_domain("notify")
+            if s.startswith("mobile_app_")
+        )
+        return [SelectOptionDict(value=KEINE, label="— keins —")] + [
+            SelectOptionDict(value=s, label=s.removeprefix("mobile_app_").replace("_", " ").title())
+            for s in dienste
+        ]
+
+    async def async_step_person(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        eid = self._personen[self._index]
+        alt: dict[str, Any] = self.config_entry.options.get(CONF_PERSONS, {}).get(eid, {})
 
         if user_input is not None:
-            personen = {
-                eid: {CONF_COLOR: list(user_input.get(eid) or DEFAULT_COLORS[i % len(DEFAULT_COLORS)])}
-                for i, eid in enumerate(self._personen)
+            handy = user_input.get(CONF_NOTIFY) or KEINE
+            self._neu[eid] = {
+                CONF_COLOR: list(user_input.get(CONF_COLOR) or DEFAULT_COLORS[self._index % len(DEFAULT_COLORS)]),
+                CONF_KEYWORDS: (user_input.get(CONF_KEYWORDS) or "").strip(),
+                CONF_NOTIFY: "" if handy == KEINE else handy,
             }
-            return self._speichern(**{CONF_PERSONS: personen})
+            self._index += 1
+            if self._index >= len(self._personen):
+                return self._speichern(**{CONF_PERSONS: self._neu})
+            return await self.async_step_person()
 
-        schema: dict[Any, Any] = {}
-        for i, eid in enumerate(self._personen):
-            farbe = alt.get(eid, {}).get(CONF_COLOR) or DEFAULT_COLORS[i % len(DEFAULT_COLORS)]
-            schema[vol.Required(eid, default=farbe)] = ColorRGBSelector()
+        state = self.hass.states.get(eid)
+        name = state.name if state else eid
+        farbe = alt.get(CONF_COLOR) or DEFAULT_COLORS[self._index % len(DEFAULT_COLORS)]
+        woerter = alt.get(CONF_KEYWORDS)
+        if woerter is None:
+            woerter = name.split()[0] if name else ""
+        handys = self._handys()
+        handy = alt.get(CONF_NOTIFY) or KEINE
+        if handy not in {h["value"] for h in handys}:  # Handy gibt es nicht mehr
+            handy = KEINE
 
-        namen = ", ".join(
-            (state.name if (state := self.hass.states.get(eid)) else eid) for eid in self._personen
-        )
         return self.async_show_form(
-            step_id="farben",
-            data_schema=vol.Schema(schema),
-            description_placeholders={"personen": namen},
+            step_id="person",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_COLOR, default=farbe): ColorRGBSelector(),
+                    vol.Optional(CONF_KEYWORDS, default=woerter): TextSelector(),
+                    vol.Optional(CONF_NOTIFY, default=handy): SelectSelector(
+                        SelectSelectorConfig(options=handys, mode=SelectSelectorMode.DROPDOWN)
+                    ),
+                }
+            ),
+            description_placeholders={
+                "name": name,
+                "nr": str(self._index + 1),
+                "anzahl": str(len(self._personen)),
+            },
+        )
+
+    # --- Kalender & Push ----------------------------------------------------
+    async def async_step_kalender(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        if user_input is not None:
+            return self._speichern(
+                **{
+                    CONF_CALENDARS: user_input.get(CONF_CALENDARS, []),
+                    CONF_PUSH_DAYS: int(user_input.get(CONF_PUSH_DAYS) or DEFAULT_PUSH_DAYS),
+                }
+            )
+
+        opts = self.config_entry.options
+        return self.async_show_form(
+            step_id="kalender",
+            data_schema=vol.Schema(
+                {
+                    vol.Optional(CONF_CALENDARS, default=opts.get(CONF_CALENDARS, [])): EntitySelector(
+                        EntitySelectorConfig(domain="calendar", multiple=True)
+                    ),
+                    vol.Optional(
+                        CONF_PUSH_DAYS, default=opts.get(CONF_PUSH_DAYS, DEFAULT_PUSH_DAYS)
+                    ): NumberSelector(
+                        NumberSelectorConfig(min=7, max=365, step=1, mode=NumberSelectorMode.BOX, unit_of_measurement="Tage")
+                    ),
+                }
+            ),
         )
 
     # --- Kindersicherung ----------------------------------------------------

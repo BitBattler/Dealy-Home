@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Familienzentrale einrichten",
-        "description": "Der Familienplaner für die Wand. Module, Personen und Farben stellst du danach unter „Konfigurieren“ ein.",
+        "description": "Der Familienplaner für die Wand. Module, Personen und Kalender stellst du danach unter „Konfigurieren“ ein.",
         "data": {
           "name": "Name"
         }
@@ -19,7 +19,8 @@
         "title": "Familienzentrale – Setup",
         "menu_options": {
           "module": "🧩 Module an/aus",
-          "personen": "👨‍👩‍👦 Personen & Farben",
+          "personen": "👨‍👩‍👦 Personen, Farben & Handys",
+          "kalender": "📅 Kalender & Push",
           "kindersicherung": "🔒 Kindersicherung (Eltern-PIN)"
         }
       },
@@ -32,14 +33,35 @@
       },
       "personen": {
         "title": "Personen",
-        "description": "Wer gehört zur Familie? Es werden die Personen aus Home Assistant verwendet (Foto und Name kommen von dort).",
+        "description": "Wer gehört zur Familie? Es werden die Personen aus Home Assistant verwendet (Foto und Name kommen von dort). Danach stellst du für jede Person Farbe, Stichwörter und Handy ein.",
         "data": {
           "personen": "Familienmitglieder"
         }
       },
-      "farben": {
-        "title": "Farben",
-        "description": "Wähle für jede Person eine Farbe ({personen}). Termine und Aufgaben werden später in dieser Farbe angezeigt."
+      "person": {
+        "title": "{name} ({nr}/{anzahl})",
+        "description": "Einstellungen für {name}.",
+        "data": {
+          "farbe": "Farbe",
+          "stichwoerter": "Stichwörter im Termintitel",
+          "benachrichtigung": "Handy für Push-Nachrichten"
+        },
+        "data_description": {
+          "farbe": "In dieser Farbe erscheinen die Termine dieser Person.",
+          "stichwoerter": "Kommagetrennt. Steht eines davon im Titel, gehört der Termin zu dieser Person – z. B. „Niilo, Kita, 👦“.",
+          "benachrichtigung": "Bekommt Pushs, z. B. bei neuen Terminen."
+        }
+      },
+      "kalender": {
+        "title": "Kalender & Push",
+        "description": "Welche Kalender zeigt der Wandkalender, und welche werden auf neue Termine überwacht?",
+        "data": {
+          "kalender": "Familienkalender",
+          "push_tage": "Neue Termine melden, wenn sie in den nächsten … Tagen liegen"
+        },
+        "data_description": {
+          "push_tage": "Termine, die weiter in der Zukunft liegen, werden erst gemeldet, wenn sie in diesen Zeitraum rücken."
+        }
       },
       "kindersicherung": {
         "title": "Kindersicherung",

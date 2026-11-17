@@ -10,7 +10,15 @@ from homeassistant.core import Event, EventStateChangedData, HomeAssistant, call
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.event import async_track_state_change_event
 
-from .const import CONF_COLOR, CONF_MODULES, CONF_PERSONS, MODULES, rgb_to_hex
+from .const import (
+    CONF_CALENDARS,
+    CONF_COLOR,
+    CONF_MODULES,
+    CONF_PERSONS,
+    MODULES,
+    rgb_to_hex,
+    stichwoerter,
+)
 from .switch import geraet
 
 
@@ -66,11 +74,15 @@ class PersonenSensor(SensorEntity):
                     "entity_id": eid,
                     "name": state.name if state else eid,
                     "farbe": rgb_to_hex(cfg.get(CONF_COLOR)),
+                    "stichwoerter": stichwoerter(cfg),
                     "bild": state.attributes.get("entity_picture") if state else None,
                     "ort": state.state if state else None,
                 }
             )
         return {
+            # Erkennungsmerkmal für das Panel
+            "familienzentrale": True,
             "personen": liste,
+            "kalender": self._entry.options.get(CONF_CALENDARS, []),
             "aktive_module": [m for m in self._entry.options.get(CONF_MODULES, []) if m in MODULES],
         }

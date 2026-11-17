@@ -14,24 +14,33 @@ from .const import CONF_MODULES, MODULES
 
 PLATFORMS: list[Platform] = [Platform.SWITCH, Platform.SENSOR]
 
-type FamilienzentraleConfigEntry = ConfigEntry
-
 
 def aktive_module(entry: ConfigEntry) -> list[str]:
     """Liste der eingeschalteten Module (nur bekannte Schlüssel)."""
     return [m for m in entry.options.get(CONF_MODULES, []) if m in MODULES]
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: FamilienzentraleConfigEntry) -> bool:
-    """Familienzentrale einrichten."""
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Familienzentrale einrichten und aktive Module starten."""
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    module = aktive_module(entry)
+    if "kalender" in module:
+        from .kalender import async_setup as kalender_setup
+
+        entry.async_on_unload(await kalender_setup(hass, entry))
+    if "termin_push" in module:
+        from .termin_push import TerminPush
+
+        entry.async_on_unload(await TerminPush(hass, entry).async_start())
+
     # Jede Änderung auf der Setup-Seite lädt die Integration neu,
     # damit Module sauber starten bzw. stoppen.
     entry.async_on_unload(entry.add_update_listener(_async_options_geaendert))
     return True
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: FamilienzentraleConfigEntry) -> bool:
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Familienzentrale entladen."""
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 

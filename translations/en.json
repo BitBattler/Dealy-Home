@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Set up Familienzentrale",
-        "description": "The family planner for your wall. Configure modules, people and colours afterwards via “Configure”.",
+        "description": "The family planner for your wall. Configure modules, people and calendars afterwards via “Configure”.",
         "data": {
           "name": "Name"
         }
@@ -19,7 +19,8 @@
         "title": "Familienzentrale – Setup",
         "menu_options": {
           "module": "🧩 Modules on/off",
-          "personen": "👨‍👩‍👦 People & colours",
+          "personen": "👨‍👩‍👦 People, colours & phones",
+          "kalender": "📅 Calendars & push",
           "kindersicherung": "🔒 Child lock (parent PIN)"
         }
       },
@@ -32,14 +33,35 @@
       },
       "personen": {
         "title": "People",
-        "description": "Who belongs to the family? The people from Home Assistant are used (photo and name come from there).",
+        "description": "Who belongs to the family? The people from Home Assistant are used (photo and name come from there). Next you set colour, keywords and phone for each person.",
         "data": {
           "personen": "Family members"
         }
       },
-      "farben": {
-        "title": "Colours",
-        "description": "Pick a colour for each person ({personen}). Events and tasks will be shown in this colour."
+      "person": {
+        "title": "{name} ({nr}/{anzahl})",
+        "description": "Settings for {name}.",
+        "data": {
+          "farbe": "Colour",
+          "stichwoerter": "Keywords in the event title",
+          "benachrichtigung": "Phone for push notifications"
+        },
+        "data_description": {
+          "farbe": "Events of this person are shown in this colour.",
+          "stichwoerter": "Comma separated. If one of them is in the title, the event belongs to this person.",
+          "benachrichtigung": "Receives pushes, e.g. for new events."
+        }
+      },
+      "kalender": {
+        "title": "Calendars & push",
+        "description": "Which calendars does the wall calendar show and watch for new events?",
+        "data": {
+          "kalender": "Family calendars",
+          "push_tage": "Report new events within the next … days"
+        },
+        "data_description": {
+          "push_tage": "Events further in the future are reported once they move into this range."
+        }
       },
       "kindersicherung": {
         "title": "Child lock",
