@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Final
 
 DOMAIN: Final = "familienzentrale"
-VERSION: Final = "0.2.0"
+VERSION: Final = "0.2.1"
 
 # Optionen (Setup-Seite)
 CONF_MODULES: Final = "module"

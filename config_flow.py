@@ -167,9 +167,7 @@ class FamilienzentraleOptionsFlow(OptionsFlow):
         state = self.hass.states.get(eid)
         name = state.name if state else eid
         farbe = alt.get(CONF_COLOR) or DEFAULT_COLORS[self._index % len(DEFAULT_COLORS)]
-        woerter = alt.get(CONF_KEYWORDS)
-        if woerter is None:
-            woerter = name.split()[0] if name else ""
+        woerter = alt.get(CONF_KEYWORDS) or (name.split()[0] if name else "")
         handys = self._handys()
         handy = alt.get(CONF_NOTIFY) or KEINE
         if handy not in {h["value"] for h in handys}:  # Handy gibt es nicht mehr

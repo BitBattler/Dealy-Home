@@ -138,9 +138,11 @@ class TerminPush:
         titel_klein = (titel or "").lower()
         namen = []
         for eid, cfg in self.entry.options.get(CONF_PERSONS, {}).items():
-            if any(w.lower() in titel_klein for w in stichwoerter(cfg)):
-                state = self.hass.states.get(eid)
-                namen.append(state.name if state else eid)
+            state = self.hass.states.get(eid)
+            name = state.name if state else eid
+            # Ohne Stichwörter gilt der Name der Person als Stichwort
+            if any(w.lower() in titel_klein for w in (stichwoerter(cfg) or [name])):
+                namen.append(name)
         return namen
 
     async def _melden(self, neue: list[Any]) -> None:

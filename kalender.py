@@ -22,13 +22,17 @@ async def async_setup(hass: HomeAssistant, entry: ConfigEntry) -> CALLBACK_TYPE:
         )
         hass.data[_STATIC_KEY] = True
 
+    # Cache-Bremse: Version + Änderungszeit der JS-Datei -> jede Änderung lädt neu
+    js = Path(__file__).parent / "frontend" / "familienzentrale-panel.js"
+    stand = int(await hass.async_add_executor_job(lambda: js.stat().st_mtime))
+
     await panel_custom.async_register_panel(
         hass,
         frontend_url_path=PANEL_URL,
         webcomponent_name=PANEL_COMPONENT,
         sidebar_title="Familie",
         sidebar_icon="mdi:home-heart",
-        module_url=f"{STATIC_URL}/familienzentrale-panel.js?v={VERSION}",
+        module_url=f"{STATIC_URL}/familienzentrale-panel.js?v={VERSION}-{stand}",
         embed_iframe=False,
         require_admin=False,
         config={"titel": entry.title},
