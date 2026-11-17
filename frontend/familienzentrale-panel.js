@@ -73,6 +73,13 @@ class FamilienzentralePanel extends HTMLElement {
     this._fehler = "";
     this._scrollNachJetzt = true;
     this._toast = "";
+    // Essensplan
+    this._seite = null;             // "kalender" | "essen"
+    this._essen = null;             // {rezepte, plan, mahlzeiten, einkaufsliste}
+    this._essenRef = montag(new Date());
+    this._essenAnsicht = "plan";    // "plan" | "rezepte"
+    this._slot = null;              // Dialog: Mahlzeit wählen
+    this._rezept = null;            // Dialog: Rezept bearbeiten
   }
 
   // ---------------- HA-Schnittstelle ----------------
@@ -81,6 +88,8 @@ class FamilienzentralePanel extends HTMLElement {
     this._hass = hass;
     if (this._menu) this._menu.hass = hass;
     if (erst) {
+      const mod = this._module();
+      this._seite = mod.includes("kalender") || !mod.includes("essensplan") ? "kalender" : "essen";
       this._aufbauen();
       this._sig = this._signatur();
       this._laden();
@@ -137,6 +146,7 @@ class FamilienzentralePanel extends HTMLElement {
 
   async _laden() {
     if (!this._hass) return;
+    if (this._seite === "essen") { await this._ladeEssen(); return; }
     const nr = ++this._ladeNr;
     const kal = this._kalender();
     const { start, ende } = this._bereich();
@@ -247,7 +257,16 @@ class FamilienzentralePanel extends HTMLElement {
     this._menu.hass = this._hass;
     this._menu.narrow = this._narrow;
     this._root.addEventListener("click", (e) => this._klick(e));
-    this._root.addEventListener("submit", (e) => { e.preventDefault(); this._speichern(); });
+    this._root.addEventListener("submit", (e) => {
+      e.preventDefault();
+      if (this._neu) this._speichern();
+    });
+    // Rezeptsuche im Mahlzeit-Dialog: Liste filtern, ohne neu zu zeichnen
+    this._root.addEventListener("input", (e) => {
+      if (e.target.id !== "f-suche") return;
+      const q = e.target.value.trim().toLowerCase();
+      this._root.querySelectorAll(".rwahl").forEach((b) => { b.hidden = !!q && !b.dataset.name.includes(q); });
+    });
   }
 
   _zeigeToast(text) {
@@ -277,8 +296,10 @@ class FamilienzentralePanel extends HTMLElement {
     const m = this._modus();
     const neuLaden = () => { this._zeichnen(); this._laden(); };
 
-    if (a === "zu") { if (e.target === el) { this._detail = null; this._neu = null; this._zeichneDialog(); } return; }
-    if (a === "schliessen") { this._detail = null; this._neu = null; this._zeichneDialog(); return; }
+    const zu = () => { this._detail = null; this._neu = null; this._slot = null; this._rezept = null; this._zeichneDialog(); };
+    if (a === "zu") { if (e.target === el) zu(); return; }
+    if (a === "schliessen") { zu(); return; }
+    if (this._klickEssen(a)) return;
     if (a === "speichern") { this._speichern(); return; }
     if (a === "loeschen") { this._loeschen(); return; }
     if (a === "ansehen" && this._neu?.ev) { this._detail = this._neu.ev; this._neu = null; this._zeichneDialog(); return; }
@@ -324,9 +345,288 @@ class FamilienzentralePanel extends HTMLElement {
     if (a === "bearbeiten") { this._navigiere("/calendar"); return; }
     if (a.startsWith("modul-")) {
       const k = a.slice(6);
-      if (k !== "kalender") this._zeigeToast("Dieses Modul kommt bald ✨");
+      if (k === "kalender" || k === "essensplan") {
+        this._seite = k === "kalender" ? "kalender" : "essen";
+        this._menuOffen = false;
+        this._scrollNachJetzt = true;
+        this._zeichnen();
+        this._laden();
+      } else this._zeigeToast("Dieses Modul kommt bald ✨");
       return;
     }
+  }
+
+  // ======================= Essensplan =======================
+  async _ladeEssen() {
+    try {
+      this._essen = await this._hass.callWS({
+        type: "familienzentrale/essen/laden", start: tagKey(this._essenRef), tage: 7,
+      });
+      this._fehler = "";
+    } catch (err) {
+      this._essen = null;
+      this._fehler = err.message || String(err);
+    }
+    this._zeichnen();
+  }
+
+  async _ws(daten, meldung) {
+    try {
+      const r = await this._hass.callWS(daten);
+      if (meldung) this._zeigeToast(meldung);
+      await this._ladeEssen();
+      return r;
+    } catch (err) {
+      this._zeigeToast(`Fehler: ${err.message || err}`);
+      return null;
+    }
+  }
+
+  _klickEssen(a) {
+    if (this._seite !== "essen") return false;
+    if (a === "heute") { this._essenRef = montag(new Date()); this._ladeEssen(); return true; }
+    if (a === "zurueck" || a === "vor") {
+      this._essenRef = plusTage(this._essenRef, a === "vor" ? 7 : -7);
+      this._ladeEssen();
+      return true;
+    }
+    if (a === "essen-plan" || a === "essen-rezepte") {
+      this._essenAnsicht = a.slice(6);
+      this._zeichnen();
+      return true;
+    }
+    if (a.startsWith("plan-")) {
+      const [datum, mahlzeit] = a.slice(5).split("|");
+      const e = this._essen?.plan?.[datum]?.[mahlzeit] || {};
+      this._slot = { datum, mahlzeit, rezept: e.rezept || null, text: e.text || "" };
+      this._zeichneDialog();
+      setTimeout(() => this._root.querySelector("#f-suche")?.focus(), 50);
+      return true;
+    }
+    if (a.startsWith("wahl-") && this._slot) {
+      const s = this._slot;
+      this._slot = null;
+      this._ws({ type: "familienzentrale/essen/plan_setzen", datum: s.datum, mahlzeit: s.mahlzeit, rezept: a.slice(5) });
+      return true;
+    }
+    if (a === "slot-text" && this._slot) {
+      const text = this._root.querySelector("#f-suche")?.value.trim();
+      if (!text) { this._zeigeToast("Bitte etwas eingeben."); return true; }
+      const s = this._slot;
+      this._slot = null;
+      this._ws({ type: "familienzentrale/essen/plan_setzen", datum: s.datum, mahlzeit: s.mahlzeit, text });
+      return true;
+    }
+    if (a === "slot-weg" && this._slot) {
+      const s = this._slot;
+      this._slot = null;
+      this._ws({ type: "familienzentrale/essen/plan_setzen", datum: s.datum, mahlzeit: s.mahlzeit });
+      return true;
+    }
+    if (a === "slot-rezept" && this._slot?.rezept) { this._oeffneRezept(this._slot.rezept); return true; }
+    if (a === "rezept-neu") { this._oeffneRezept(null); return true; }
+    if (a.startsWith("rezept-oeffnen-")) { this._oeffneRezept(a.slice(15)); return true; }
+    if (a === "rezept-speichern") { this._rezeptSpeichern(); return true; }
+    if (a === "rezept-loeschen") { this._rezeptLoeschen(); return true; }
+    if (a === "einkaufen") { this._einkaufen(); return true; }
+    if (a === "neu") { this._oeffneRezept(null); return true; }
+    return false;
+  }
+
+  _oeffneRezept(id) {
+    const r = id ? this._essen?.rezepte?.[id] : null;
+    this._slot = null;
+    this._rezept = {
+      id: id || null, name: r?.name || "", emoji: r?.emoji || "", portionen: r?.portionen || 4,
+      zutaten: (r?.zutaten || []).join("\n"), zubereitung: r?.zubereitung || "", link: r?.link || "",
+      loeschenBestaetigen: false,
+    };
+    this._zeichneDialog();
+    if (!id) setTimeout(() => this._root.querySelector("#r-name")?.focus(), 50);
+  }
+
+  _rezeptMerken() {
+    const f = (id) => this._root.querySelector(id);
+    if (!this._rezept || !f("#r-name")) return;
+    Object.assign(this._rezept, {
+      name: f("#r-name").value, emoji: f("#r-emoji").value, portionen: Number(f("#r-portionen").value) || 4,
+      zutaten: f("#r-zutaten").value, zubereitung: f("#r-zubereitung").value, link: f("#r-link").value,
+    });
+  }
+
+  async _rezeptSpeichern() {
+    this._rezeptMerken();
+    const r = this._rezept;
+    if (!r.name.trim()) { this._zeigeToast("Bitte einen Namen eingeben."); return; }
+    const daten = {
+      type: "familienzentrale/essen/rezept_speichern", name: r.name.trim(), emoji: r.emoji.trim(),
+      portionen: Math.max(1, Math.min(50, r.portionen)),
+      zutaten: r.zutaten.split("\n").map((z) => z.trim()).filter(Boolean),
+      zubereitung: r.zubereitung, link: r.link.trim(),
+    };
+    if (r.id) daten.id = r.id;
+    this._rezept = null;
+    this._zeichneDialog();
+    await this._ws(daten, "Rezept gespeichert ✔");
+  }
+
+  async _rezeptLoeschen() {
+    const r = this._rezept;
+    if (!r?.id) return;
+    if (!r.loeschenBestaetigen) { this._rezeptMerken(); r.loeschenBestaetigen = true; this._zeichneDialog(); return; }
+    this._rezept = null;
+    this._zeichneDialog();
+    await this._ws({ type: "familienzentrale/essen/rezept_loeschen", id: r.id }, "Rezept gelöscht");
+  }
+
+  async _einkaufen() {
+    if (!this._essen?.einkaufsliste) {
+      this._zeigeToast("Keine Einkaufsliste gewählt – ⚙️ → Konfigurieren → „🍝 Essensplan“.");
+      return;
+    }
+    try {
+      const r = await this._hass.callWS({ type: "familienzentrale/essen/einkaufen", start: tagKey(this._essenRef), tage: 7 });
+      if (!r.hinzugefuegt && !r.schon_da) this._zeigeToast("Diese Woche sind keine Rezepte mit Zutaten geplant.");
+      else this._zeigeToast(`🛒 ${r.hinzugefuegt} Zutaten auf „${r.liste}“${r.schon_da ? ` (${r.schon_da} waren schon drauf)` : ""}`);
+    } catch (err) {
+      this._zeigeToast(`Fehler: ${err.message || err}`);
+    }
+  }
+
+  _mahlzeitName(m) { return { fruehstueck: "🥣 Frühstück", mittag: "🍝 Mittag", abend: "🌙 Abend" }[m] || m; }
+
+  _eintragAnzeige(e) {
+    if (!e) return null;
+    if (e.rezept) {
+      const r = this._essen?.rezepte?.[e.rezept];
+      if (r) return { emoji: r.emoji || "🍽", name: r.name, rezept: true };
+    }
+    return e.text ? { emoji: "", name: e.text, rezept: false } : null;
+  }
+
+  _essenKopf() {
+    const s = this._essenRef;
+    const e = plusTage(s, 6);
+    const titel = this._panel?.config?.titel || "Familie";
+    const a = this._essenAnsicht;
+    this._root.getElementById("kopf").innerHTML = `
+      <div class="kopf-links">
+        <div class="titelzeile">${this._narrow ? '<span id="menuplatz"></span>' : ""}
+          <h1>${hhmm(new Date())} <span class="strich">|</span> ${esc(titel)}</h1></div>
+        <div class="tabs">
+          <button class="rund" data-a="heute" title="Diese Woche"><ha-icon icon="mdi:calendar-today"></ha-icon></button>
+          <button class="tab" data-a="zurueck">‹</button>
+          <span class="tab aktiv">KW ${kw(s)} · ${ddmm(s)} – ${ddmm(e)}</span>
+          <button class="tab" data-a="vor">›</button>
+          <span class="trenner"></span>
+          <button class="tab ${a === "plan" ? "aktiv" : ""}" data-a="essen-plan">🗓 Wochenplan</button>
+          <button class="tab ${a === "rezepte" ? "aktiv" : ""}" data-a="essen-rezepte">📖 Rezepte</button>
+        </div>
+      </div>
+      <div class="kopf-rechts">
+        <button class="knopf-gross" data-a="einkaufen" title="Zutaten dieser Woche auf die Einkaufsliste">
+          <ha-icon icon="mdi:cart-plus"></ha-icon><span>Auf die Einkaufsliste</span></button>
+        <button class="zahnrad" data-a="einstellungen" title="Einstellungen"><ha-icon icon="mdi:cog"></ha-icon></button>
+      </div>`;
+    if (this._narrow) this._root.getElementById("menuplatz").appendChild(this._menu);
+  }
+
+  _essenInhalt() {
+    if (!this._essen) {
+      return `<div class="hinweis">${this._fehler ? esc(this._fehler) : "Lädt …"}</div>`;
+    }
+    return this._essenAnsicht === "rezepte" ? this._rezeptListe() : this._wochenplan();
+  }
+
+  _wochenplan() {
+    const m = this._essen.mahlzeiten || ["mittag", "abend"];
+    const heute = tagKey(new Date());
+    let html = `<div class="essen"><div class="eplan" style="grid-template-columns:110px repeat(${m.length}, minmax(0,1fr))">
+      <div></div>${m.map((x) => `<div class="ekopf">${this._mahlzeitName(x)}</div>`).join("")}`;
+    for (let i = 0; i < 7; i++) {
+      const d = plusTage(this._essenRef, i);
+      const k = tagKey(d);
+      html += `<div class="etag ${k === heute ? "heute" : ""}"><b>${WT[i]}</b><span>${ddmm(d)}</span></div>`;
+      for (const x of m) {
+        const anz = this._eintragAnzeige(this._essen.plan?.[k]?.[x]);
+        html += anz
+          ? `<button class="eslot voll ${k === heute ? "heute" : ""}" data-a="plan-${k}|${x}">
+               <span class="eemoji">${esc(anz.emoji)}</span><span class="ename">${esc(anz.name)}</span>
+               ${anz.rezept ? `<ha-icon class="erez" icon="mdi:book-open-variant"></ha-icon>` : ""}</button>`
+          : `<button class="eslot leer" data-a="plan-${k}|${x}">＋</button>`;
+      }
+    }
+    html += `</div>`;
+    if (!Object.keys(this._essen.rezepte || {}).length) {
+      html += `<div class="hinweis klein">Tipp: Lege unter <b>📖 Rezepte</b> eure Lieblingsgerichte mit Zutaten an –
+        dann landen die Zutaten per Knopfdruck auf der Einkaufsliste.</div>`;
+    }
+    return html + `</div>`;
+  }
+
+  _rezeptListe() {
+    const r = Object.entries(this._essen.rezepte || {}).sort((a, b) => a[1].name.localeCompare(b[1].name, "de"));
+    return `<div class="essen"><div class="rgitter">
+      <button class="rkarte neu" data-a="rezept-neu"><span class="eemoji">＋</span><b>Neues Rezept</b></button>
+      ${r.map(([id, x]) => `
+        <button class="rkarte" data-a="rezept-oeffnen-${id}">
+          <span class="eemoji">${esc(x.emoji || "🍽")}</span>
+          <b>${esc(x.name)}</b>
+          <span class="grau">${x.zutaten.length} Zutaten · ${x.portionen} Portionen</span>
+        </button>`).join("")}
+    </div></div>`;
+  }
+
+  _slotDialog() {
+    const s = this._slot;
+    const d = parseDatum(s.datum);
+    const r = Object.entries(this._essen?.rezepte || {}).sort((a, b) => a[1].name.localeCompare(b[1].name, "de"));
+    const aktuell = this._eintragAnzeige(s.rezept ? { rezept: s.rezept } : (s.text ? { text: s.text } : null));
+    return `
+      <div class="overlay" data-a="zu">
+        <div class="karte">
+          <h2>${this._mahlzeitName(s.mahlzeit)} · ${WT_LANG[wt(d)]} ${ddmm(d)}</h2>
+          ${aktuell ? `<p class="grau">Geplant: <b>${esc(aktuell.emoji)} ${esc(aktuell.name)}</b></p>` : ""}
+          <div class="formular"><label>Rezept suchen oder freien Text eingeben
+            <input id="f-suche" value="${esc(s.rezept ? "" : s.text)}" placeholder="z. B. Spaghetti, Pizza, Reste …" autocomplete="off"></label></div>
+          <div class="rwahl-liste">${r.map(([id, x]) => `
+            <button class="rwahl ${id === s.rezept ? "an" : ""}" data-a="wahl-${id}" data-name="${esc(x.name.toLowerCase())}">
+              <span>${esc(x.emoji || "🍽")}</span>${esc(x.name)}</button>`).join("")
+            || `<p class="grau">Noch keine Rezepte – einfach Text eingeben.</p>`}</div>
+          <div class="knoepfe">
+            ${aktuell ? `<button class="gefahr" data-a="slot-weg">Entfernen</button>` : ""}
+            ${s.rezept ? `<button class="zweit" data-a="slot-rezept">📖 Rezept</button>` : ""}
+            <span class="platz"></span>
+            <button class="zweit" data-a="schliessen">Abbrechen</button>
+            <button data-a="slot-text">Als Text übernehmen</button>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  _rezeptDialog() {
+    const r = this._rezept;
+    return `
+      <div class="overlay" data-a="zu">
+        <form class="karte formular breit">
+          <h2>${r.id ? "Rezept bearbeiten" : "Neues Rezept"}</h2>
+          <div class="reihe">
+            <label style="flex:0 0 76px">Emoji<input id="r-emoji" value="${esc(r.emoji)}" placeholder="🍝" maxlength="4"></label>
+            <label>Name<input id="r-name" value="${esc(r.name)}" placeholder="z. B. Spaghetti Bolognese" autocomplete="off"></label>
+            <label style="flex:0 0 100px">Portionen<input id="r-portionen" type="number" min="1" max="50" value="${r.portionen}"></label>
+          </div>
+          <label>Zutaten (eine pro Zeile)<textarea id="r-zutaten" rows="7" placeholder="500 g Spaghetti&#10;400 g Hackfleisch&#10;1 Dose Tomaten">${esc(r.zutaten)}</textarea></label>
+          <label>Zubereitung<textarea id="r-zubereitung" rows="5">${esc(r.zubereitung)}</textarea></label>
+          <label>Link (freiwillig)<input id="r-link" value="${esc(r.link)}" placeholder="https://…" autocomplete="off"></label>
+          ${r.link ? `<p><a href="${esc(r.link)}" target="_blank" rel="noopener">🔗 Rezept öffnen</a></p>` : ""}
+          <div class="knoepfe">
+            ${r.id ? `<button type="button" class="gefahr" data-a="rezept-loeschen">${r.loeschenBestaetigen ? "Wirklich löschen?" : "🗑 Löschen"}</button>` : ""}
+            <span class="platz"></span>
+            <button type="button" class="zweit" data-a="schliessen">Abbrechen</button>
+            <button type="button" data-a="rezept-speichern">Speichern</button>
+          </div>
+        </form>
+      </div>`;
   }
 
   // ---------------- Termin anlegen ----------------
@@ -507,7 +807,7 @@ class FamilienzentralePanel extends HTMLElement {
     leiste.innerHTML = `
       <div class="logo" data-a="einstellungen" title="Familienzentrale"><ha-icon icon="mdi:home-heart"></ha-icon></div>
       ${eintraege.map((x) => `
-        <button class="rail ${x.key === "kalender" ? "aktiv" : ""}" data-a="modul-${x.key}">
+        <button class="rail ${(x.key === "kalender" && this._seite === "kalender") || (x.key === "essensplan" && this._seite === "essen") ? "aktiv" : ""}" data-a="modul-${x.key}">
           <ha-icon icon="${x.icon}"></ha-icon><span>${x.label}</span>
         </button>`).join("")}
       <div class="platz"></div>
@@ -517,6 +817,7 @@ class FamilienzentralePanel extends HTMLElement {
 
   _zeichneKopf() {
     if (!this._root) return;
+    if (this._seite === "essen") { this._essenKopf(); return; }
     const kopf = this._root.getElementById("kopf");
     const m = this._modus();
     const titel = this._panel?.config?.titel || "Familie";
@@ -581,6 +882,7 @@ class FamilienzentralePanel extends HTMLElement {
       inhalt.innerHTML = `<div class="hinweis">Die Familienzentrale ist noch nicht eingerichtet.</div>`;
       return;
     }
+    if (this._seite === "essen") { inhalt.innerHTML = this._essenInhalt(); return; }
     if (!this._kalender().length) {
       inhalt.innerHTML = `<div class="hinweis">Noch kein Kalender gewählt.<br>
         ⚙️ → Konfigurieren → „📅 Kalender &amp; Push“.</div>`;
@@ -779,6 +1081,8 @@ class FamilienzentralePanel extends HTMLElement {
   // ---------- Dialoge ----------
   _zeichneDialog() {
     const dlg = this._root.getElementById("dialog");
+    if (this._rezept) { dlg.innerHTML = this._rezeptDialog(); return; }
+    if (this._slot) { dlg.innerHTML = this._slotDialog(); return; }
     if (this._neu) { dlg.innerHTML = this._formular(); return; }
     const ev = this._detail;
     if (!ev) { dlg.innerHTML = ""; return; }
@@ -974,6 +1278,38 @@ FamilienzentralePanel.css = `
     margin-bottom:8px; cursor:pointer; }
   .lkarte > div:first-child { flex:1; min-width:0; }
   .lkarte .btitel { font-weight:700; font-size:.95em; }
+
+  /* Essensplan */
+  .trenner { width:1px; height:24px; background:var(--fz-linie); margin:0 4px; }
+  .knopf-gross { display:inline-flex; align-items:center; gap:8px; padding:9px 16px; border-radius:999px; font-weight:700;
+    background:var(--primary-color, #3f7fe0); color:var(--text-primary-color, #fff); }
+  .essen { flex:1; overflow:auto; padding:14px 18px; }
+  .eplan { display:grid; gap:8px; align-items:stretch; }
+  .ekopf { font-weight:800; color:var(--fz-grau); padding:2px 4px; }
+  .etag { display:flex; flex-direction:column; justify-content:center; padding:6px 10px; border-radius:10px;
+    background:var(--fz-karte); min-height:58px; }
+  .etag span { color:var(--fz-grau); font-size:.85em; }
+  .etag.heute { background:var(--fz-akzent); color:#fff; }
+  .etag.heute span { color:rgba(255,255,255,.85); }
+  .eslot { display:flex; align-items:center; gap:10px; padding:8px 12px; border-radius:10px; text-align:left;
+    background:var(--fz-karte); min-height:58px; position:relative; }
+  .eslot.voll { border-left:4px solid var(--fz-akzent); background:color-mix(in srgb, var(--fz-akzent) 10%, var(--fz-karte)); }
+  .eslot.leer { justify-content:center; color:var(--fz-grau); border:2px dashed var(--fz-linie); background:transparent; font-size:1.3em; }
+  .eslot.leer:hover { border-color:var(--fz-grau); }
+  .eemoji { font-size:1.6em; line-height:1; }
+  .ename { flex:1; font-weight:700; }
+  .erez { --mdc-icon-size:16px; color:var(--fz-grau); }
+  .hinweis.klein { padding:16px; font-size:.9em; }
+  .rgitter { display:grid; grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); gap:12px; }
+  .rkarte { display:flex; flex-direction:column; align-items:flex-start; gap:4px; padding:14px; border-radius:14px;
+    background:var(--fz-karte); text-align:left; box-shadow:0 1px 3px rgba(0,0,0,.06); min-height:110px; }
+  .rkarte .eemoji { font-size:2em; }
+  .rkarte.neu { border:2px dashed var(--fz-linie); background:transparent; justify-content:center; align-items:center; color:var(--fz-grau); }
+  .rwahl-liste { display:flex; flex-wrap:wrap; gap:6px; max-height:38vh; overflow:auto; margin:6px 0; }
+  .rwahl { display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border-radius:999px; background:var(--fz-grund); font-weight:600; }
+  .rwahl.an { background:var(--fz-akzent); color:#fff; }
+  .rwahl[hidden] { display:none; }
+  .karte.breit { max-width:620px; }
 
   /* Dialoge */
   .overlay { position:fixed; inset:0; background:rgba(20,24,35,.45); display:flex; align-items:center;

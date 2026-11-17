@@ -25,10 +25,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     module = aktive_module(entry)
-    if "kalender" in module:
+    # Das Panel „Familie“ braucht es, sobald ein Modul mit Oberfläche aktiv ist
+    if {"kalender", "essensplan"} & set(module):
         from .kalender import async_setup as kalender_setup
 
         entry.async_on_unload(await kalender_setup(hass, entry))
+    if "essensplan" in module:
+        from .essensplan import async_setup as essensplan_setup
+
+        entry.async_on_unload(await essensplan_setup(hass, entry))
     if "termin_push" in module:
         from .termin_push import TerminPush
 

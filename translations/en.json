@@ -22,6 +22,7 @@
           "personen": "👨‍👩‍👦 People, colours & phones",
           "haustiere": "🐕 Pets",
           "kalender": "📅 Calendars & push",
+          "essensplan": "🍝 Meal plan",
           "kindersicherung": "🔒 Child lock (parent PIN)"
         }
       },
@@ -83,6 +84,17 @@
         },
         "data_description": {
           "push_tage": "Events further in the future are reported once they move into this range."
+        }
+      },
+      "essensplan": {
+        "title": "Meal plan",
+        "description": "Recipes and the weekly plan are managed in the “Familie” panel under 🍎 Essen.",
+        "data": {
+          "einkaufsliste": "Shopping list",
+          "mahlzeiten": "Meals in the weekly plan"
+        },
+        "data_description": {
+          "einkaufsliste": "Ingredients are added here with one tap (a to-do list)."
         }
       },
       "kindersicherung": {

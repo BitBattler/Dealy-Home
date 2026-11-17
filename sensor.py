@@ -20,6 +20,7 @@ from .const import (
     CONF_PERSONS,
     CONF_PET_NAME,
     CONF_PETS,
+    CONF_SHOPPING_LIST,
     MODULES,
     rgb_to_hex,
     stichwoerter,
@@ -102,5 +103,6 @@ class PersonenSensor(SensorEntity):
             "familienzentrale": True,
             "personen": liste,
             "kalender": self._entry.options.get(CONF_CALENDARS, []),
+            "einkaufsliste": self._entry.options.get(CONF_SHOPPING_LIST) or None,
             "aktive_module": [m for m in self._entry.options.get(CONF_MODULES, []) if m in MODULES],
         }

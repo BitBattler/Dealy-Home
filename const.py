@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Final
 
 DOMAIN: Final = "familienzentrale"
-VERSION: Final = "0.3.0"
+VERSION: Final = "0.4.0"
 
 # Optionen (Setup-Seite)
 CONF_MODULES: Final = "module"
@@ -17,6 +17,13 @@ CONF_NOTIFY: Final = "benachrichtigung"
 CONF_CALENDARS: Final = "kalender"
 CONF_PUSH_DAYS: Final = "push_tage"
 CONF_PETS: Final = "haustiere"
+CONF_SHOPPING_LIST: Final = "einkaufsliste"
+CONF_MEALS: Final = "mahlzeiten"
+
+# Essensplan
+MAHLZEITEN: Final = ["fruehstueck", "mittag", "abend"]
+MAHLZEIT_NAMEN: Final = {"fruehstueck": "Frühstück", "mittag": "Mittag", "abend": "Abend"}
+DEFAULT_MEALS: Final = ["mittag", "abend"]
 CONF_ICON: Final = "icon"
 CONF_PET_NAME: Final = "name"
 

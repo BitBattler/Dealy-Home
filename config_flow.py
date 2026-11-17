@@ -38,7 +38,12 @@ from .const import (
     CONF_COLOR,
     CONF_ICON,
     CONF_KEYWORDS,
+    CONF_MEALS,
     CONF_MODULES,
+    CONF_SHOPPING_LIST,
+    DEFAULT_MEALS,
+    MAHLZEIT_NAMEN,
+    MAHLZEITEN,
     CONF_NOTIFY,
     CONF_PERSONS,
     CONF_PET_NAME,
@@ -95,8 +100,33 @@ class FamilienzentraleOptionsFlow(OptionsFlow):
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         return self.async_show_menu(
             step_id="init",
-            menu_options=["module", "personen", "haustiere", "kalender", "kindersicherung"],
+            menu_options=["module", "personen", "haustiere", "kalender", "essensplan", "kindersicherung"],
         )
+
+    # --- Essensplan ---------------------------------------------------------
+    async def async_step_essensplan(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        if user_input is not None:
+            return self._speichern(
+                **{
+                    CONF_SHOPPING_LIST: user_input.get(CONF_SHOPPING_LIST) or "",
+                    CONF_MEALS: user_input.get(CONF_MEALS) or DEFAULT_MEALS,
+                }
+            )
+
+        opts = self.config_entry.options
+        schema: dict[Any, Any] = {}
+        liste = opts.get(CONF_SHOPPING_LIST)
+        schema[
+            vol.Optional(CONF_SHOPPING_LIST, description={"suggested_value": liste} if liste else None)
+        ] = EntitySelector(EntitySelectorConfig(domain="todo"))
+        schema[vol.Optional(CONF_MEALS, default=opts.get(CONF_MEALS, DEFAULT_MEALS))] = SelectSelector(
+            SelectSelectorConfig(
+                options=[SelectOptionDict(value=m, label=MAHLZEIT_NAMEN[m]) for m in MAHLZEITEN],
+                multiple=True,
+                mode=SelectSelectorMode.LIST,
+            )
+        )
+        return self.async_show_form(step_id="essensplan", data_schema=vol.Schema(schema))
 
     # --- Haustiere (Mitglieder ohne HA-Person, z. B. der Hund) -------------
     async def async_step_haustiere(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:

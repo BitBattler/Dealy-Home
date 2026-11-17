@@ -22,6 +22,7 @@
           "personen": "👨‍👩‍👦 Personen, Farben & Handys",
           "haustiere": "🐕 Haustiere",
           "kalender": "📅 Kalender & Push",
+          "essensplan": "🍝 Essensplan",
           "kindersicherung": "🔒 Kindersicherung (Eltern-PIN)"
         }
       },
@@ -83,6 +84,17 @@
         },
         "data_description": {
           "push_tage": "Termine, die weiter in der Zukunft liegen, werden erst gemeldet, wenn sie in diesen Zeitraum rücken."
+        }
+      },
+      "essensplan": {
+        "title": "Essensplan",
+        "description": "Rezepte und Wochenplan verwaltest du im Panel „Familie“ unter 🍎 Essen.",
+        "data": {
+          "einkaufsliste": "Einkaufsliste",
+          "mahlzeiten": "Mahlzeiten im Wochenplan"
+        },
+        "data_description": {
+          "einkaufsliste": "Hierhin kommen die Zutaten per Knopfdruck (eine To-do-Liste, z. B. „Einkaufsliste“)."
         }
       },
       "kindersicherung": {
