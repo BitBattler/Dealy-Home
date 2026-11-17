@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Editor / System
+.vscode/
+.idea/
+.DS_Store
+
+# Niemals Geheimnisse oder Daten committen
+secrets.yaml
+*.token
+*.db
+.storage/
