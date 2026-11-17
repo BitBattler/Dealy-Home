@@ -169,7 +169,16 @@ class FamilienzentralePanel extends HTMLElement {
       ((p.stichwoerter && p.stichwoerter.length) ? p.stichwoerter : [p.name])
         .some((w) => w && klein.includes(String(w).toLowerCase())));
     return { titel, start, ende, ganz, ort: e.location || "", text: e.description || "", kal, personen,
-      serie: !!(e.rrule || e.recurrence_id) };
+      serie: !!(e.rrule || e.recurrence_id), uid: e.uid || null, rid: e.recurrence_id || null };
+  }
+
+  // CalendarEntityFeature: CREATE_EVENT = 1, DELETE_EVENT = 2, UPDATE_EVENT = 4
+  _features(eid) { return (this._hass.states[eid]?.attributes.supported_features) || 0; }
+  _kannAnlegen(eid) { return !!(this._features(eid) & 1); }
+  _kannLoeschen(eid) { return !!(this._features(eid) & 2); }
+  _kannAendern(eid) {
+    const f = this._features(eid);
+    return !!(f & 4) || ((f & 2) && (f & 1));
   }
 
   _sichtbar(ev) {
@@ -257,8 +266,10 @@ class FamilienzentralePanel extends HTMLElement {
     const el = e.target.closest("[data-a],[data-ev]");
     if (!el) { if (this._menuOffen) { this._menuOffen = false; this._zeichneKopf(); } return; }
     if (el.dataset.ev !== undefined) {
-      this._detail = this._events[Number(el.dataset.ev)];
-      this._zeichneDialog();
+      const ev = this._events[Number(el.dataset.ev)];
+      // Bearbeitbar? Dann direkt das Formular, sonst nur die Ansicht
+      if (ev.uid && this._kannAendern(ev.kal)) this._oeffneBearbeiten(ev);
+      else { this._detail = ev; this._zeichneDialog(); }
       return;
     }
     const a = el.dataset.a;
@@ -268,6 +279,9 @@ class FamilienzentralePanel extends HTMLElement {
     if (a === "zu") { if (e.target === el) { this._detail = null; this._neu = null; this._zeichneDialog(); } return; }
     if (a === "schliessen") { this._detail = null; this._neu = null; this._zeichneDialog(); return; }
     if (a === "speichern") { this._speichern(); return; }
+    if (a === "loeschen") { this._loeschen(); return; }
+    if (a === "ansehen" && this._neu?.ev) { this._detail = this._neu.ev; this._neu = null; this._zeichneDialog(); return; }
+    if (a === "aendern" && this._detail) { this._oeffneBearbeiten(this._detail); return; }
     if (a === "menu") { this._menuOffen = !this._menuOffen; this._zeichneKopf(); return; }
     if (a === "heute") { this._ref = tagStart(new Date()); this._scrollNachJetzt = true; neuLaden(); return; }
     if (a === "zurueck" || a === "vor") {
@@ -316,23 +330,37 @@ class FamilienzentralePanel extends HTMLElement {
 
   // ---------------- Termin anlegen ----------------
   _schreibbareKalender() {
-    // CalendarEntityFeature.CREATE_EVENT = 1
-    return this._kalender().filter((eid) => ((this._hass.states[eid]?.attributes.supported_features) || 0) & 1);
+    return this._kalender().filter((eid) => this._kannAnlegen(eid));
   }
 
   _oeffneNeu(datum) {
     const kal = this._schreibbareKalender();
-    if (!kal.length) { this._zeigeToast("Keiner der Kalender erlaubt neue Termine."); return; }
+    if (!kal.length) {
+      this._zeigeToast("Keiner der gewählten Kalender erlaubt neue Termine (nur lesbar).");
+      return;
+    }
     const d = datum ? parseDatum(datum) : tagStart(new Date());
     const jetzt = new Date();
     const h = Math.min(Math.max(jetzt.getHours() + 1, 7), 20);
     this._neu = {
-      titel: "", datum: tagKey(d), von: `${pad(h)}:00`, bis: `${pad(h + 1)}:00`, ganz: false,
-      kal: kal[0], personen: this._filter ? [this._filter] : [], ort: "",
+      titel: "", datum: tagKey(d), datumBis: tagKey(d), von: `${pad(h)}:00`, bis: `${pad(h + 1)}:00`, ganz: false,
+      kal: kal[0], personen: this._filter ? [this._filter] : [], ort: "", text: "",
     };
     this._detail = null;
     this._zeichneDialog();
     setTimeout(() => this._root.querySelector("#f-titel")?.focus(), 50);
+  }
+
+  _oeffneBearbeiten(ev) {
+    const letzterTag = ev.ganz ? plusTage(ev.ende, -1) : ev.ende;
+    this._neu = {
+      ev, titel: ev.titel, datum: tagKey(ev.start),
+      datumBis: tagKey(letzterTag < ev.start ? ev.start : letzterTag),
+      von: ev.ganz ? "08:00" : hhmm(ev.start), bis: ev.ganz ? "09:00" : hhmm(ev.ende), ganz: ev.ganz,
+      kal: ev.kal, personen: [], ort: ev.ort, text: ev.text, loeschenBestaetigen: false,
+    };
+    this._detail = null;
+    this._zeichneDialog();
   }
 
   _formularMerken() {
@@ -340,17 +368,53 @@ class FamilienzentralePanel extends HTMLElement {
     if (!this._neu || !f("#f-titel")) return;
     this._neu.titel = f("#f-titel").value;
     this._neu.datum = f("#f-datum").value;
+    this._neu.datumBis = f("#f-datum-bis").value || this._neu.datum;
     this._neu.von = f("#f-von").value;
     this._neu.bis = f("#f-bis").value;
     this._neu.ganz = f("#f-ganz").checked;
-    this._neu.kal = f("#f-kal").value;
+    if (f("#f-kal")) this._neu.kal = f("#f-kal").value;
     this._neu.ort = f("#f-ort").value;
+    this._neu.text = f("#f-text").value;
+  }
+
+  // Datum + Uhrzeit (Browser-Zeitzone) als ISO mit Offset
+  _iso(datum, zeit) {
+    const [y, m, d] = datum.split("-").map(Number);
+    const [hh, mm] = zeit.split(":").map(Number);
+    const dt = new Date(y, m - 1, d, hh, mm);
+    const off = -dt.getTimezoneOffset();
+    const v = off >= 0 ? "+" : "-";
+    return `${datum}T${pad(hh)}:${pad(mm)}:00${v}${pad(Math.floor(Math.abs(off) / 60))}:${pad(Math.abs(off) % 60)}`;
+  }
+
+  async _loeschen() {
+    const n = this._neu;
+    if (!n?.ev) return;
+    if (!n.loeschenBestaetigen) {
+      this._formularMerken();
+      n.loeschenBestaetigen = true;
+      this._zeichneDialog();
+      return;
+    }
+    try {
+      await this._hass.callWS({
+        type: "calendar/event/delete", entity_id: n.ev.kal, uid: n.ev.uid,
+        ...(n.ev.rid ? { recurrence_id: n.ev.rid } : {}),
+      });
+      this._neu = null;
+      this._zeichneDialog();
+      this._zeigeToast("Termin gelöscht");
+      setTimeout(() => this._laden(), 800);
+    } catch (err) {
+      this._zeigeToast(`Fehler: ${err.message || err}`);
+    }
   }
 
   async _speichern() {
     this._formularMerken();
     const n = this._neu;
     if (!n) return;
+    if (n.ev) { await this._aendern(); return; }
     let titel = (n.titel || "").trim();
     if (!titel) { this._zeigeToast("Bitte einen Titel eingeben."); return; }
     // Gewählte Personen in den Titel, falls ihr Stichwort/Name noch fehlt
@@ -361,22 +425,66 @@ class FamilienzentralePanel extends HTMLElement {
       .map((p) => (p.stichwoerter && p.stichwoerter[0]) || p.name);
     if (fehlend.length) titel += ` – ${fehlend.join(", ")}`;
 
+    const zeit = this._zeitspanne(n);
+    if (!zeit) return;
     const daten = { summary: titel };
     if (n.ort) daten.location = n.ort;
-    if (n.ganz) {
-      daten.start_date = n.datum;
-      daten.end_date = tagKey(plusTage(parseDatum(n.datum), 1));
-    } else {
-      if (n.bis <= n.von) { this._zeigeToast("Das Ende muss nach dem Beginn liegen."); return; }
-      daten.start_date_time = `${n.datum} ${n.von}:00`;
-      daten.end_date_time = `${n.datum} ${n.bis}:00`;
-    }
+    if (n.text) daten.description = n.text;
+    if (n.ganz) { daten.start_date = zeit.start; daten.end_date = zeit.ende; }
+    else { daten.start_date_time = zeit.start; daten.end_date_time = zeit.ende; }
     try {
       await this._hass.callService("calendar", "create_event", daten, { entity_id: n.kal });
       this._neu = null;
       this._zeichneDialog();
       this._zeigeToast("Termin gespeichert ✔");
       setTimeout(() => this._laden(), 1500);
+    } catch (err) {
+      this._zeigeToast(`Fehler: ${err.message || err}`);
+    }
+  }
+
+  // Start/Ende aus dem Formular (ganztägig: Datum, Ende exklusiv; sonst ISO mit Offset)
+  _zeitspanne(n) {
+    if (!n.datum) { this._zeigeToast("Bitte ein Datum wählen."); return null; }
+    const bisDatum = n.datumBis && n.datumBis >= n.datum ? n.datumBis : n.datum;
+    if (n.ganz) return { start: n.datum, ende: tagKey(plusTage(parseDatum(bisDatum), 1)) };
+    const start = this._iso(n.datum, n.von || "08:00");
+    const ende = this._iso(bisDatum, n.bis || "09:00");
+    if (new Date(ende) <= new Date(start)) { this._zeigeToast("Das Ende muss nach dem Beginn liegen."); return null; }
+    return { start, ende };
+  }
+
+  async _aendern() {
+    const n = this._neu;
+    const ev = n.ev;
+    const titel = (n.titel || "").trim();
+    if (!titel) { this._zeigeToast("Bitte einen Titel eingeben."); return; }
+    const zeit = this._zeitspanne(n);
+    if (!zeit) return;
+    try {
+      if (this._features(ev.kal) & 4) {
+        await this._hass.callWS({
+          type: "calendar/event/update", entity_id: ev.kal, uid: ev.uid,
+          ...(ev.rid ? { recurrence_id: ev.rid } : {}),
+          event: { summary: titel, dtstart: zeit.start, dtend: zeit.ende, description: n.text || "", location: n.ort || "" },
+        });
+      } else {
+        // Kalender kann nur anlegen + löschen (z. B. Google): ersetzen
+        const daten = { summary: titel };
+        if (n.ort) daten.location = n.ort;
+        if (n.text) daten.description = n.text;
+        if (n.ganz) { daten.start_date = zeit.start; daten.end_date = zeit.ende; }
+        else { daten.start_date_time = zeit.start; daten.end_date_time = zeit.ende; }
+        await this._hass.callService("calendar", "create_event", daten, { entity_id: ev.kal });
+        await this._hass.callWS({
+          type: "calendar/event/delete", entity_id: ev.kal, uid: ev.uid,
+          ...(ev.rid ? { recurrence_id: ev.rid } : {}),
+        });
+      }
+      this._neu = null;
+      this._zeichneDialog();
+      this._zeigeToast("Termin geändert ✔");
+      setTimeout(() => this._laden(), 800);
     } catch (err) {
       this._zeigeToast(`Fehler: ${err.message || err}`);
     }
@@ -682,37 +790,53 @@ class FamilienzentralePanel extends HTMLElement {
           ${ev.personen.length ? `<p>${ev.personen.map((p) => `<span class="pille" style="background:${p.farbe};color:${textFarbe(p.farbe)}">${esc(p.name)}</span>`).join(" ")}</p>` : ""}
           ${ev.ort ? `<p>📍 ${esc(ev.ort)}</p>` : ""}
           ${ev.text ? `<p class="beschreibung">${esc(ev.text)}</p>` : ""}
-          <p class="grau">📅 ${esc(kal)}</p>
-          <div class="knoepfe"><button class="zweit" data-a="bearbeiten">✏️ Bearbeiten</button><button data-a="schliessen">Schließen</button></div>
+          <p class="grau">📅 ${esc(kal)}${this._kannAendern(ev.kal) ? "" : " · 🔒 nur lesbar (Kalender-Abo)"}</p>
+          <div class="knoepfe">
+            ${ev.uid && this._kannAendern(ev.kal) ? `<button class="zweit" data-a="aendern">✏️ Bearbeiten</button>` : ""}
+            <button data-a="schliessen">Schließen</button>
+          </div>
         </div>
       </div>`;
   }
 
   _formular() {
     const n = this._neu;
-    const kal = this._schreibbareKalender();
+    const bearbeiten = !!n.ev;
+    const kal = bearbeiten ? [n.kal] : this._schreibbareKalender();
+    const kalName = (k) => esc(this._hass.states[k]?.attributes.friendly_name || k);
+    const farbe = bearbeiten ? this._farbe(n.ev) : NEUTRAL;
+    const personenWahl = bearbeiten ? "" : `<div class="wer">${this._personen().map((p) => {
+      const an = n.personen.includes(p.entity_id);
+      return `<button type="button" class="pille wahl ${an ? "an" : ""}" data-a="wer-${p.entity_id}"
+        style="${an ? `background:${p.farbe};color:${textFarbe(p.farbe)}` : `border-color:${p.farbe}`}">${esc(p.name)}</button>`;
+    }).join("")}</div>`;
+    const loeschen = bearbeiten && this._kannLoeschen(n.kal)
+      ? `<button type="button" class="gefahr" data-a="loeschen">${n.loeschenBestaetigen ? "Wirklich löschen?" : "🗑 Löschen"}</button>` : "";
     return `
       <div class="overlay" data-a="zu">
-        <form class="karte formular">
-          <h2>Neuer Termin</h2>
-          <label>Titel<input id="f-titel" value="${esc(n.titel)}" placeholder="z. B. Kinderarzt" autocomplete="off"></label>
-          <div class="wer">${this._personen().map((p) => {
-            const an = n.personen.includes(p.entity_id);
-            return `<button type="button" class="pille wahl ${an ? "an" : ""}" data-a="wer-${p.entity_id}"
-              style="${an ? `background:${p.farbe};color:${textFarbe(p.farbe)}` : `border-color:${p.farbe}`}">${esc(p.name)}</button>`;
-          }).join("")}</div>
+        <form class="karte formular" style="border-top:8px solid ${farbe}">
+          <h2>${bearbeiten ? "Termin bearbeiten" : "Neuer Termin"}</h2>
+          ${bearbeiten && n.ev.serie ? `<p class="grau">🔁 Serientermin – Änderungen gelten nur für diesen einen Termin.</p>` : ""}
+          <label>Titel<input id="f-titel" value="${esc(n.titel)}" placeholder="z. B. Kinderarzt Niilo" autocomplete="off"></label>
+          ${personenWahl}
           <div class="reihe">
-            <label>Datum<input id="f-datum" type="date" value="${n.datum}"></label>
+            <label>Von (Datum)<input id="f-datum" type="date" value="${n.datum}"></label>
+            <label>Bis (Datum)<input id="f-datum-bis" type="date" value="${n.datumBis || n.datum}"></label>
             <label class="check"><input id="f-ganz" type="checkbox" data-a="ganztag" ${n.ganz ? "checked" : ""}> ganztägig</label>
           </div>
           <div class="reihe ${n.ganz ? "aus" : ""}">
-            <label>Von<input id="f-von" type="time" value="${n.von}" ${n.ganz ? "disabled" : ""}></label>
-            <label>Bis<input id="f-bis" type="time" value="${n.bis}" ${n.ganz ? "disabled" : ""}></label>
+            <label>Beginn<input id="f-von" type="time" value="${n.von}" ${n.ganz ? "disabled" : ""}></label>
+            <label>Ende<input id="f-bis" type="time" value="${n.bis}" ${n.ganz ? "disabled" : ""}></label>
           </div>
-          <label>Ort (freiwillig)<input id="f-ort" value="${esc(n.ort)}" autocomplete="off"></label>
-          <label>Kalender<select id="f-kal">${kal.map((k) =>
-            `<option value="${k}" ${k === n.kal ? "selected" : ""}>${esc(this._hass.states[k]?.attributes.friendly_name || k)}</option>`).join("")}</select></label>
-          <div class="knoepfe"><button type="button" class="zweit" data-a="schliessen">Abbrechen</button><button type="button" data-a="speichern">Speichern</button></div>
+          <label>Ort<input id="f-ort" value="${esc(n.ort)}" autocomplete="off"></label>
+          <label>Notiz<textarea id="f-text" rows="3">${esc(n.text)}</textarea></label>
+          <label>Kalender<select id="f-kal" ${bearbeiten ? "disabled" : ""}>${kal.map((k) =>
+            `<option value="${k}" ${k === n.kal ? "selected" : ""}>${kalName(k)}</option>`).join("")}</select></label>
+          <div class="knoepfe">
+            ${loeschen}<span class="platz"></span>
+            <button type="button" class="zweit" data-a="schliessen">Abbrechen</button>
+            <button type="button" data-a="speichern">Speichern</button>
+          </div>
         </form>
       </div>`;
   }
@@ -861,7 +985,10 @@ FamilienzentralePanel.css = `
   .knoepfe button { padding:10px 18px; border-radius:999px; background:var(--primary-color, #3f7fe0); color:#fff; font-weight:700; }
   .knoepfe button.zweit { background:var(--fz-grund); color:var(--fz-text); }
   .formular label { display:flex; flex-direction:column; gap:4px; font-size:.85em; font-weight:700; color:var(--fz-grau); margin:10px 0; }
-  .formular input, .formular select { font:inherit; font-size:1.1em; color:var(--fz-text); background:var(--fz-grund);
+  .knoepfe .platz { flex:1; }
+  .knoepfe button.gefahr { background:color-mix(in srgb, var(--error-color, #db4437) 14%, var(--fz-karte)); color:var(--error-color, #db4437); }
+  .formular textarea { resize:vertical; }
+  .formular input, .formular select, .formular textarea { font:inherit; font-size:1.1em; color:var(--fz-text); background:var(--fz-grund);
     border:1px solid var(--fz-linie); border-radius:10px; padding:10px 12px; }
   .formular .reihe { display:flex; gap:12px; align-items:flex-end; }
   .formular .reihe > label { flex:1; }
