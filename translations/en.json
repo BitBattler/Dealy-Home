@@ -1,0 +1,59 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up Familienzentrale",
+        "description": "The family planner for your wall. Configure modules, people and colours afterwards via “Configure”.",
+        "data": {
+          "name": "Name"
+        }
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Familienzentrale is already set up."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Familienzentrale – Setup",
+        "menu_options": {
+          "module": "🧩 Modules on/off",
+          "personen": "👨‍👩‍👦 People & colours",
+          "kindersicherung": "🔒 Child lock (parent PIN)"
+        }
+      },
+      "module": {
+        "title": "Modules",
+        "description": "Checked modules are active. Disabled modules are hidden and stopped – their data is kept.",
+        "data": {
+          "module": "Active modules"
+        }
+      },
+      "personen": {
+        "title": "People",
+        "description": "Who belongs to the family? The people from Home Assistant are used (photo and name come from there).",
+        "data": {
+          "personen": "Family members"
+        }
+      },
+      "farben": {
+        "title": "Colours",
+        "description": "Pick a colour for each person ({personen}). Events and tasks will be shown in this colour."
+      },
+      "kindersicherung": {
+        "title": "Child lock",
+        "description": "The parent PIN protects settings and redeeming rewards on the wall display.",
+        "data": {
+          "pin": "Parent PIN"
+        },
+        "data_description": {
+          "pin": "4 to 8 digits. Leave empty = no PIN."
+        }
+      }
+    },
+    "error": {
+      "pin_ungueltig": "The PIN must consist of 4 to 8 digits."
+    }
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Familienzentrale einrichten",
+        "description": "Der Familienplaner für die Wand. Module, Personen und Farben stellst du danach unter „Konfigurieren“ ein.",
+        "data": {
+          "name": "Name"
+        }
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Die Familienzentrale ist bereits eingerichtet."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Familienzentrale – Setup",
+        "menu_options": {
+          "module": "🧩 Module an/aus",
+          "personen": "👨‍👩‍👦 Personen & Farben",
+          "kindersicherung": "🔒 Kindersicherung (Eltern-PIN)"
+        }
+      },
+      "module": {
+        "title": "Module",
+        "description": "Angehakte Module sind aktiv. Ausgeschaltete Module werden ausgeblendet und gestoppt – ihre Daten bleiben erhalten.",
+        "data": {
+          "module": "Aktive Module"
+        }
+      },
+      "personen": {
+        "title": "Personen",
+        "description": "Wer gehört zur Familie? Es werden die Personen aus Home Assistant verwendet (Foto und Name kommen von dort).",
+        "data": {
+          "personen": "Familienmitglieder"
+        }
+      },
+      "farben": {
+        "title": "Farben",
+        "description": "Wähle für jede Person eine Farbe ({personen}). Termine und Aufgaben werden später in dieser Farbe angezeigt."
+      },
+      "kindersicherung": {
+        "title": "Kindersicherung",
+        "description": "Mit der Eltern-PIN werden Einstellungen und das Einlösen von Belohnungen am Wanddisplay geschützt.",
+        "data": {
+          "pin": "Eltern-PIN"
+        },
+        "data_description": {
+          "pin": "4 bis 8 Ziffern. Leer lassen = keine PIN."
+        }
+      }
+    },
+    "error": {
+      "pin_ungueltig": "Die PIN muss aus 4 bis 8 Ziffern bestehen."
+    }
+  }
+}
