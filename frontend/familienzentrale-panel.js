@@ -80,6 +80,7 @@ class FamilienzentralePanel extends HTMLElement {
     this._essenAnsicht = "plan";    // "plan" | "rezepte"
     this._slot = null;              // Dialog: Mahlzeit wählen
     this._rezept = null;            // Dialog: Rezept bearbeiten
+    this._ki = null;                // Dialog: KI (Rezept / Woche)
   }
 
   // ---------------- HA-Schnittstelle ----------------
@@ -296,7 +297,11 @@ class FamilienzentralePanel extends HTMLElement {
     const m = this._modus();
     const neuLaden = () => { this._zeichnen(); this._laden(); };
 
-    const zu = () => { this._detail = null; this._neu = null; this._slot = null; this._rezept = null; this._zeichneDialog(); };
+    const zu = () => {
+      if (this._ki?.laeuft) return;   // während die KI schreibt, offen lassen
+      this._detail = null; this._neu = null; this._slot = null; this._rezept = null; this._ki = null;
+      this._zeichneDialog();
+    };
     if (a === "zu") { if (e.target === el) zu(); return; }
     if (a === "schliessen") { zu(); return; }
     if (this._klickEssen(a)) return;
@@ -429,6 +434,18 @@ class FamilienzentralePanel extends HTMLElement {
     if (a === "rezept-speichern") { this._rezeptSpeichern(); return true; }
     if (a === "rezept-loeschen") { this._rezeptLoeschen(); return true; }
     if (a === "einkaufen") { this._einkaufen(); return true; }
+    if (a === "ki-rezept") {
+      this._ki = { modus: "rezept", eingabe: "", laeuft: false };
+      this._zeichneDialog();
+      setTimeout(() => this._root.querySelector("#k-eingabe")?.focus(), 50);
+      return true;
+    }
+    if (a === "ki-woche") {
+      this._ki = { modus: "woche", eingabe: "", nurLeere: true, laeuft: false };
+      this._zeichneDialog();
+      return true;
+    }
+    if (a === "ki-los") { this._kiLos(); return true; }
     if (a === "neu") { this._oeffneRezept(null); return true; }
     return false;
   }
@@ -493,6 +510,68 @@ class FamilienzentralePanel extends HTMLElement {
     }
   }
 
+  async _kiLos() {
+    const k = this._ki;
+    if (!k || k.laeuft) return;
+    k.eingabe = (this._root.querySelector("#k-eingabe")?.value || "").trim();
+    if (k.modus === "woche") k.nurLeere = !!this._root.querySelector("#k-leer")?.checked;
+    if (k.modus === "rezept" && k.eingabe.length < 2) { this._zeigeToast("Bitte eine Idee, einen Text oder Link eingeben."); return; }
+    k.laeuft = true;
+    this._zeichneDialog();
+    try {
+      if (k.modus === "rezept") {
+        const r = await this._hass.callWS({ type: "familienzentrale/essen/ki_rezept", eingabe: k.eingabe });
+        this._ki = null;
+        await this._ladeEssen();
+        this._essenAnsicht = "rezepte";
+        this._zeichnen();
+        this._oeffneRezept(r.id);
+        this._zeigeToast("✨ Rezept erstellt und gespeichert – hier kannst du es anpassen");
+      } else {
+        const r = await this._hass.callWS({
+          type: "familienzentrale/essen/ki_woche", start: tagKey(this._essenRef),
+          wuensche: k.eingabe, nur_leere: k.nurLeere,
+        });
+        this._ki = null;
+        this._essenAnsicht = "plan";
+        await this._ladeEssen();
+        this._zeigeToast(r.geplant
+          ? `✨ ${r.geplant} Mahlzeiten geplant${r.neue_rezepte ? `, ${r.neue_rezepte} neue Rezepte` : ""}`
+          : "Es gab nichts zu planen (alles schon belegt oder vorbei).");
+      }
+    } catch (err) {
+      k.laeuft = false;
+      this._zeichneDialog();
+      this._zeigeToast(`Fehler: ${err.message || err}`);
+    }
+  }
+
+  _kiDialog() {
+    const k = this._ki;
+    const rezept = k.modus === "rezept";
+    const laeuft = k.laeuft
+      ? `<div class="ki-laeuft"><span class="ki-funken">✨</span> Claude ${rezept ? "schreibt das Rezept" : "plant eure Woche"} … das dauert ${rezept ? "ein paar Sekunden" : "bis zu einer Minute"}.</div>` : "";
+    return `
+      <div class="overlay" data-a="zu">
+        <form class="karte formular breit">
+          <h2>${rezept ? "✨ Rezept mit KI" : "✨ Woche vorschlagen"}</h2>
+          <p class="grau">${rezept
+            ? "Gib eine Idee ein („schnelle Gemüse-Lasagne“), füge einen Rezepttext ein oder einen Link. Claude macht daraus ein Rezept mit Zutaten und Schritten."
+            : `Claude plant die Mahlzeiten für KW ${kw(this._essenRef)} – mit Zutaten für die Einkaufsliste. Tage, die schon vorbei sind, werden übersprungen.`}</p>
+          <label>${rezept ? "Idee, Rezepttext oder Link" : "Wünsche für diese Woche (freiwillig)"}
+            <textarea id="k-eingabe" rows="${rezept ? 6 : 3}" ${k.laeuft ? "disabled" : ""}
+              placeholder="${rezept ? "z. B. Kürbissuppe mit Kokosmilch, die Niilo mag" : "z. B. zweimal Fisch, etwas mit Kürbis, Freitag Pizza"}">${esc(k.eingabe)}</textarea></label>
+          ${rezept ? "" : `<label class="check"><input id="k-leer" type="checkbox" ${k.nurLeere ? "checked" : ""} ${k.laeuft ? "disabled" : ""}> Nur leere Felder füllen</label>`}
+          ${laeuft}
+          <div class="knoepfe">
+            <span class="platz"></span>
+            <button type="button" class="zweit" data-a="schliessen" ${k.laeuft ? "disabled" : ""}>Abbrechen</button>
+            <button type="button" data-a="ki-los" ${k.laeuft ? "disabled" : ""}>✨ Los</button>
+          </div>
+        </form>
+      </div>`;
+  }
+
   _mahlzeitName(m) { return { fruehstueck: "🥣 Frühstück", mittag: "🍝 Mittag", abend: "🌙 Abend" }[m] || m; }
 
   _eintragAnzeige(e) {
@@ -524,6 +603,8 @@ class FamilienzentralePanel extends HTMLElement {
         </div>
       </div>
       <div class="kopf-rechts">
+        <button class="knopf-gross ki" data-a="ki-woche" title="Claude plant die Woche">
+          <ha-icon icon="mdi:creation"></ha-icon><span>Woche vorschlagen</span></button>
         <button class="knopf-gross" data-a="einkaufen" title="Zutaten dieser Woche auf die Einkaufsliste">
           <ha-icon icon="mdi:cart-plus"></ha-icon><span>Auf die Einkaufsliste</span></button>
         <button class="zahnrad" data-a="einstellungen" title="Einstellungen"><ha-icon icon="mdi:cog"></ha-icon></button>
@@ -567,6 +648,8 @@ class FamilienzentralePanel extends HTMLElement {
   _rezeptListe() {
     const r = Object.entries(this._essen.rezepte || {}).sort((a, b) => a[1].name.localeCompare(b[1].name, "de"));
     return `<div class="essen"><div class="rgitter">
+      <button class="rkarte neu ki" data-a="ki-rezept"><span class="eemoji">✨</span><b>Rezept mit KI</b>
+        <span class="grau">Idee, Text oder Link</span></button>
       <button class="rkarte neu" data-a="rezept-neu"><span class="eemoji">＋</span><b>Neues Rezept</b></button>
       ${r.map(([id, x]) => `
         <button class="rkarte" data-a="rezept-oeffnen-${id}">
@@ -1081,6 +1164,7 @@ class FamilienzentralePanel extends HTMLElement {
   // ---------- Dialoge ----------
   _zeichneDialog() {
     const dlg = this._root.getElementById("dialog");
+    if (this._ki) { dlg.innerHTML = this._kiDialog(); return; }
     if (this._rezept) { dlg.innerHTML = this._rezeptDialog(); return; }
     if (this._slot) { dlg.innerHTML = this._slotDialog(); return; }
     if (this._neu) { dlg.innerHTML = this._formular(); return; }
@@ -1310,6 +1394,13 @@ FamilienzentralePanel.css = `
   .rwahl.an { background:var(--fz-akzent); color:#fff; }
   .rwahl[hidden] { display:none; }
   .karte.breit { max-width:620px; }
+  .knopf-gross.ki, .rkarte.ki { background:linear-gradient(135deg, #a18cd1, #fbc2eb); color:#3b2a55; border:0; }
+  .rkarte.ki .grau { color:#5b4a75; }
+  .ki-laeuft { display:flex; align-items:center; gap:10px; padding:12px 14px; border-radius:12px; margin-top:8px;
+    background:color-mix(in srgb, #a18cd1 18%, var(--fz-karte)); font-weight:700; }
+  .ki-funken { display:inline-block; animation:fz-dreh 1.4s linear infinite; font-size:1.3em; }
+  @keyframes fz-dreh { from { transform:rotate(0deg) scale(1); } 50% { transform:rotate(180deg) scale(1.25); } to { transform:rotate(360deg) scale(1); } }
+  button[disabled] { opacity:.5; cursor:default; }
 
   /* Dialoge */
   .overlay { position:fixed; inset:0; background:rgba(20,24,35,.45); display:flex; align-items:center;

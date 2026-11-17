@@ -91,10 +91,12 @@
         "description": "Rezepte und Wochenplan verwaltest du im Panel „Familie“ unter 🍎 Essen.",
         "data": {
           "einkaufsliste": "Einkaufsliste",
-          "mahlzeiten": "Mahlzeiten im Wochenplan"
+          "mahlzeiten": "Mahlzeiten im Wochenplan",
+          "essens_hinweise": "Hinweise für KI-Rezepte"
         },
         "data_description": {
-          "einkaufsliste": "Hierhin kommen die Zutaten per Knopfdruck (eine To-do-Liste, z. B. „Einkaufsliste“)."
+          "einkaufsliste": "Hierhin kommen die Zutaten per Knopfdruck (eine To-do-Liste, z. B. „Einkaufsliste“).",
+          "essens_hinweise": "Z. B. „Kind 3 Jahre, nicht scharf, wenig Fleisch, unter der Woche max. 30 Minuten, keine Pilze“."
         }
       },
       "kindersicherung": {

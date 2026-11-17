@@ -37,6 +37,7 @@ from .const import (
     CONF_CALENDARS,
     CONF_COLOR,
     CONF_ICON,
+    CONF_FOOD_NOTES,
     CONF_KEYWORDS,
     CONF_MEALS,
     CONF_MODULES,
@@ -110,6 +111,7 @@ class FamilienzentraleOptionsFlow(OptionsFlow):
                 **{
                     CONF_SHOPPING_LIST: user_input.get(CONF_SHOPPING_LIST) or "",
                     CONF_MEALS: user_input.get(CONF_MEALS) or DEFAULT_MEALS,
+                    CONF_FOOD_NOTES: (user_input.get(CONF_FOOD_NOTES) or "").strip(),
                 }
             )
 
@@ -125,6 +127,9 @@ class FamilienzentraleOptionsFlow(OptionsFlow):
                 multiple=True,
                 mode=SelectSelectorMode.LIST,
             )
+        )
+        schema[vol.Optional(CONF_FOOD_NOTES, default=opts.get(CONF_FOOD_NOTES, ""))] = TextSelector(
+            TextSelectorConfig(multiline=True)
         )
         return self.async_show_form(step_id="essensplan", data_schema=vol.Schema(schema))
 

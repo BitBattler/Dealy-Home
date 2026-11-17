@@ -91,10 +91,12 @@
         "description": "Recipes and the weekly plan are managed in the “Familie” panel under 🍎 Essen.",
         "data": {
           "einkaufsliste": "Shopping list",
-          "mahlzeiten": "Meals in the weekly plan"
+          "mahlzeiten": "Meals in the weekly plan",
+          "essens_hinweise": "Notes for AI recipes"
         },
         "data_description": {
-          "einkaufsliste": "Ingredients are added here with one tap (a to-do list)."
+          "einkaufsliste": "Ingredients are added here with one tap (a to-do list).",
+          "essens_hinweise": "E.g. “child aged 3, not spicy, little meat, max. 30 minutes on weekdays”."
         }
       },
       "kindersicherung": {

@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Final
 
 DOMAIN: Final = "familienzentrale"
-VERSION: Final = "0.4.0"
+VERSION: Final = "0.5.0"
 
 # Optionen (Setup-Seite)
 CONF_MODULES: Final = "module"
@@ -19,6 +19,7 @@ CONF_PUSH_DAYS: Final = "push_tage"
 CONF_PETS: Final = "haustiere"
 CONF_SHOPPING_LIST: Final = "einkaufsliste"
 CONF_MEALS: Final = "mahlzeiten"
+CONF_FOOD_NOTES: Final = "essens_hinweise"
 
 # Essensplan
 MAHLZEITEN: Final = ["fruehstueck", "mittag", "abend"]
