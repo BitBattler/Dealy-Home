@@ -26,6 +26,8 @@ from .const import (
     CONF_CALENDARS,
     CONF_NOTIFY,
     CONF_PERSONS,
+    CONF_PET_NAME,
+    CONF_PETS,
     CONF_PUSH_DAYS,
     DEFAULT_PUSH_DAYS,
     DOMAIN,
@@ -142,6 +144,10 @@ class TerminPush:
             name = state.name if state else eid
             # Ohne Stichwörter gilt der Name der Person als Stichwort
             if any(w.lower() in titel_klein for w in (stichwoerter(cfg) or [name])):
+                namen.append(name)
+        for tier in self.entry.options.get(CONF_PETS, []):
+            name = tier[CONF_PET_NAME]
+            if any(w.lower() in titel_klein for w in (stichwoerter(tier) or [name])):
                 namen.append(name)
         return namen
 

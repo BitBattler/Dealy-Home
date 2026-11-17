@@ -20,6 +20,7 @@
         "menu_options": {
           "module": "🧩 Module an/aus",
           "personen": "👨‍👩‍👦 Personen, Farben & Handys",
+          "haustiere": "🐕 Haustiere",
           "kalender": "📅 Kalender & Push",
           "kindersicherung": "🔒 Kindersicherung (Eltern-PIN)"
         }
@@ -50,6 +51,27 @@
           "farbe": "In dieser Farbe erscheinen die Termine dieser Person.",
           "stichwoerter": "Kommagetrennt. Steht eines davon im Titel, gehört der Termin zu dieser Person – z. B. „Niilo, Kita, 👦“.",
           "benachrichtigung": "Bekommt Pushs, z. B. bei neuen Terminen."
+        }
+      },
+      "haustiere": {
+        "title": "Haustiere",
+        "description": "Haustiere erscheinen wie Familienmitglieder im Kalender – mit Icon statt Foto.",
+        "data": {
+          "behalten": "Vorhandene Haustiere (abwählen = entfernen)",
+          "neu": "Neues Haustier hinzufügen"
+        }
+      },
+      "haustier": {
+        "title": "Haustier hinzufügen",
+        "data": {
+          "name": "Name",
+          "icon": "Icon",
+          "farbe": "Farbe",
+          "stichwoerter": "Stichwörter im Termintitel",
+          "weiteres": "Danach noch eines hinzufügen"
+        },
+        "data_description": {
+          "stichwoerter": "Kommagetrennt, z. B. „Ameo, Welpengruppe, Tierarzt“. Leer = der Name."
         }
       },
       "kalender": {

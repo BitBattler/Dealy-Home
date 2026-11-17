@@ -10,11 +10,16 @@ from homeassistant.core import Event, EventStateChangedData, HomeAssistant, call
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.event import async_track_state_change_event
 
+from homeassistant.util import slugify
+
 from .const import (
     CONF_CALENDARS,
     CONF_COLOR,
+    CONF_ICON,
     CONF_MODULES,
     CONF_PERSONS,
+    CONF_PET_NAME,
+    CONF_PETS,
     MODULES,
     rgb_to_hex,
     stichwoerter,
@@ -77,6 +82,19 @@ class PersonenSensor(SensorEntity):
                     "stichwoerter": stichwoerter(cfg),
                     "bild": state.attributes.get("entity_picture") if state else None,
                     "ort": state.state if state else None,
+                }
+            )
+        # Haustiere: Mitglieder ohne HA-Person, mit Icon statt Foto
+        for tier in self._entry.options.get(CONF_PETS, []):
+            liste.append(
+                {
+                    "entity_id": f"haustier.{slugify(tier[CONF_PET_NAME])}",
+                    "name": tier[CONF_PET_NAME],
+                    "farbe": rgb_to_hex(tier.get(CONF_COLOR)),
+                    "stichwoerter": stichwoerter(tier),
+                    "bild": None,
+                    "icon": tier.get(CONF_ICON) or "mdi:paw",
+                    "ort": None,
                 }
             )
         return {

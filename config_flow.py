@@ -16,7 +16,9 @@ from homeassistant.config_entries import (
 from homeassistant.const import CONF_NAME
 from homeassistant.core import callback
 from homeassistant.helpers.selector import (
+    BooleanSelector,
     ColorRGBSelector,
+    IconSelector,
     EntitySelector,
     EntitySelectorConfig,
     NumberSelector,
@@ -34,10 +36,13 @@ from homeassistant.helpers.selector import (
 from .const import (
     CONF_CALENDARS,
     CONF_COLOR,
+    CONF_ICON,
     CONF_KEYWORDS,
     CONF_MODULES,
     CONF_NOTIFY,
     CONF_PERSONS,
+    CONF_PET_NAME,
+    CONF_PETS,
     CONF_PIN,
     CONF_PUSH_DAYS,
     DEFAULT_COLORS,
@@ -82,6 +87,7 @@ class FamilienzentraleOptionsFlow(OptionsFlow):
         self._personen: list[str] = []
         self._index = 0
         self._neu: dict[str, dict[str, Any]] = {}
+        self._tiere: list[dict[str, Any]] = []
 
     def _speichern(self, **aenderungen: Any) -> ConfigFlowResult:
         return self.async_create_entry(data={**self.config_entry.options, **aenderungen})
@@ -89,7 +95,56 @@ class FamilienzentraleOptionsFlow(OptionsFlow):
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         return self.async_show_menu(
             step_id="init",
-            menu_options=["module", "personen", "kalender", "kindersicherung"],
+            menu_options=["module", "personen", "haustiere", "kalender", "kindersicherung"],
+        )
+
+    # --- Haustiere (Mitglieder ohne HA-Person, z. B. der Hund) -------------
+    async def async_step_haustiere(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        alt: list[dict[str, Any]] = self.config_entry.options.get(CONF_PETS, [])
+        namen = [t[CONF_PET_NAME] for t in alt]
+
+        if user_input is not None:
+            behalten = user_input.get("behalten", namen)
+            self._tiere = [t for t in alt if t[CONF_PET_NAME] in behalten]
+            if user_input.get("neu"):
+                return await self.async_step_haustier()
+            return self._speichern(**{CONF_PETS: self._tiere})
+
+        schema: dict[Any, Any] = {}
+        if alt:
+            schema[vol.Optional("behalten", default=namen)] = SelectSelector(
+                SelectSelectorConfig(options=namen, multiple=True, mode=SelectSelectorMode.LIST)
+            )
+        schema[vol.Optional("neu", default=not alt)] = BooleanSelector()
+        return self.async_show_form(step_id="haustiere", data_schema=vol.Schema(schema))
+
+    async def async_step_haustier(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        if user_input is not None:
+            name = (user_input.get(CONF_PET_NAME) or "").strip()
+            if name and name not in [t[CONF_PET_NAME] for t in self._tiere]:
+                self._tiere.append(
+                    {
+                        CONF_PET_NAME: name,
+                        CONF_ICON: user_input.get(CONF_ICON) or "mdi:paw",
+                        CONF_COLOR: list(user_input.get(CONF_COLOR) or [141, 110, 99]),
+                        CONF_KEYWORDS: (user_input.get(CONF_KEYWORDS) or "").strip(),
+                    }
+                )
+            if user_input.get("weiteres"):
+                return await self.async_step_haustier()
+            return self._speichern(**{CONF_PETS: self._tiere})
+
+        return self.async_show_form(
+            step_id="haustier",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_PET_NAME): TextSelector(),
+                    vol.Optional(CONF_ICON, default="mdi:dog"): IconSelector(),
+                    vol.Required(CONF_COLOR, default=[141, 110, 99]): ColorRGBSelector(),
+                    vol.Optional(CONF_KEYWORDS, default=""): TextSelector(),
+                    vol.Optional("weiteres", default=False): BooleanSelector(),
+                }
+            ),
         )
 
     # --- Module an/aus ------------------------------------------------------

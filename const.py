@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Final
 
 DOMAIN: Final = "familienzentrale"
-VERSION: Final = "0.2.1"
+VERSION: Final = "0.3.0"
 
 # Optionen (Setup-Seite)
 CONF_MODULES: Final = "module"
@@ -16,6 +16,9 @@ CONF_KEYWORDS: Final = "stichwoerter"
 CONF_NOTIFY: Final = "benachrichtigung"
 CONF_CALENDARS: Final = "kalender"
 CONF_PUSH_DAYS: Final = "push_tage"
+CONF_PETS: Final = "haustiere"
+CONF_ICON: Final = "icon"
+CONF_PET_NAME: Final = "name"
 
 DEFAULT_PUSH_DAYS: Final = 180
 

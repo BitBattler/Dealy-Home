@@ -9,7 +9,7 @@ const WT_LANG = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Sam
 const MON = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August",
   "September", "Oktober", "November", "Dezember"];
 const NEUTRAL = "#90a4ae";
-const STD = 60;            // Pixel pro Stunde im Zeitraster
+const STD = 48;            // Pixel pro Stunde im Zeitraster
 const MAX_CHIPS = 4;       // Monatsansicht
 
 // Leiste links: Modul-Schlüssel -> Eintrag (nur aktive Module erscheinen)
@@ -213,7 +213,8 @@ class FamilienzentralePanel extends HTMLElement {
 
   _badges(ev) {
     return ev.personen.map((p) =>
-      `<span class="badge" style="background:${p.farbe};color:${textFarbe(p.farbe)}" title="${esc(p.name)}">${esc(initial(p.name))}</span>`).join("");
+      `<span class="badge" style="background:${p.farbe};color:${textFarbe(p.farbe)}" title="${esc(p.name)}">${
+        p.icon ? `<ha-icon icon="${esc(p.icon)}"></ha-icon>` : esc(initial(p.name))}</span>`).join("");
   }
 
   _zeitText(ev) {
@@ -547,6 +548,7 @@ class FamilienzentralePanel extends HTMLElement {
       return `<button class="avatar ${aktiv ? "aktiv" : ""} ${gedimmt ? "dimm" : ""}" data-a="person-${p.entity_id}"
           style="--ring:${p.farbe}" title="${esc(p.name)}">
         ${p.bild ? `<img src="${esc(p.bild)}" alt="">`
+          : p.icon ? `<span style="background:${pastell(p.farbe, 45)}"><ha-icon icon="${esc(p.icon)}"></ha-icon></span>`
           : `<span style="background:${pastell(p.farbe, 45)}">${esc(initial(p.name))}</span>`}
       </button>`;
     }).join("");
@@ -674,9 +676,9 @@ class FamilienzentralePanel extends HTMLElement {
         const ev = this._events[x.id];
         const f = this._farbe(ev);
         const top = (x.s - tagAnf) / 3600000 * STD;
-        const h = Math.max(30, (x.e - x.s) / 3600000 * STD - 3);
+        const h = Math.max(24, (x.e - x.s) / 3600000 * STD - 3);
         const breite = 100 / x.n;
-        const kurz = h < 48;
+        const kurz = h < 36;
         return `<div class="block ${kurz ? "kurz" : ""}" data-ev="${x.id}"
             style="top:${top}px;height:${h}px;left:calc(${x.spur * breite}% + 2px);width:calc(${breite}% - 4px);
                    background:${pastell(f)};border-left-color:${f}">
@@ -852,7 +854,7 @@ FamilienzentralePanel.css = `
     --fz-akzent: #f26b3a;
     --fz-blau: color-mix(in srgb, var(--primary-color, #3f7fe0) 18%, var(--fz-karte));
     display:block; height:100%; background:var(--fz-grund); color:var(--fz-text);
-    font-family: Nunito, var(--ha-font-family-body, Roboto), sans-serif; font-size:16px;
+    font-family: Nunito, var(--ha-font-family-body, Roboto), sans-serif; font-size:14px;
   }
   * { box-sizing:border-box; }
   button { font:inherit; color:inherit; cursor:pointer; border:0; background:none; }
@@ -860,37 +862,37 @@ FamilienzentralePanel.css = `
   .app { display:flex; height:100%; }
 
   /* Leiste links */
-  #leiste { width:92px; flex:none; display:flex; flex-direction:column; align-items:center; gap:6px;
-    padding:14px 0; background:var(--fz-karte); border-right:1px solid var(--fz-linie); }
-  .logo { width:56px; height:56px; border-radius:16px; display:flex; align-items:center; justify-content:center;
-    background:linear-gradient(135deg, #ff9a8b, #a18cd1 55%, #6fd3c7); color:#fff; margin-bottom:18px; cursor:pointer; }
-  .logo ha-icon { --mdc-icon-size:32px; }
-  .rail { width:80px; padding:10px 0; border-radius:14px; display:flex; flex-direction:column; align-items:center; gap:4px;
+  #leiste { width:76px; flex:none; display:flex; flex-direction:column; align-items:center; gap:4px;
+    padding:12px 0; background:var(--fz-karte); border-right:1px solid var(--fz-linie); }
+  .logo { width:46px; height:46px; border-radius:14px; display:flex; align-items:center; justify-content:center;
+    background:linear-gradient(135deg, #ff9a8b, #a18cd1 55%, #6fd3c7); color:#fff; margin-bottom:14px; cursor:pointer; }
+  .logo ha-icon { --mdc-icon-size:26px; }
+  .rail { width:66px; padding:8px 0; border-radius:12px; display:flex; flex-direction:column; align-items:center; gap:3px;
     color:var(--fz-grau); font-size:.72em; font-weight:700; }
-  .rail ha-icon { --mdc-icon-size:30px; }
+  .rail ha-icon { --mdc-icon-size:24px; }
   .rail.aktiv { color:var(--fz-text); background:var(--fz-grund); }
   .rail:hover { background:var(--fz-grund); }
   .platz { flex:1; }
-  .fab { width:60px; height:60px; border-radius:50%; color:#fff; margin-top:6px;
+  .fab { width:50px; height:50px; border-radius:50%; color:#fff; margin-top:6px;
     background:conic-gradient(from 200deg, #ff6a88, #ffb86c, #ffe66d, #7ee081, #6ec6ff, #b388ff, #ff6a88);
     box-shadow:0 6px 18px rgba(0,0,0,.18); display:flex; align-items:center; justify-content:center; }
-  .fab ha-icon { --mdc-icon-size:34px; }
+  .fab ha-icon { --mdc-icon-size:28px; }
 
   main { flex:1; min-width:0; display:flex; flex-direction:column; }
 
   /* Kopf */
-  #kopf { display:flex; align-items:center; gap:16px; padding:14px 22px 10px; background:var(--fz-karte);
+  #kopf { display:flex; align-items:center; gap:14px; padding:10px 18px 8px; background:var(--fz-karte);
     border-bottom:1px solid var(--fz-linie); }
   .kopf-links { flex:1; min-width:0; }
   .titelzeile { display:flex; align-items:center; gap:6px; }
-  h1 { margin:0; font-size:2.1em; font-weight:800; letter-spacing:-.01em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  h1 { margin:0; font-size:1.75em; font-weight:800; letter-spacing:-.01em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .strich { font-weight:400; color:var(--fz-grau); }
-  .tabs { display:flex; align-items:center; gap:10px; margin-top:10px; flex-wrap:wrap; }
-  .rund { height:42px; min-width:42px; border-radius:21px; background:var(--fz-grund); color:var(--fz-grau);
+  .tabs { display:flex; align-items:center; gap:8px; margin-top:8px; flex-wrap:wrap; }
+  .rund { height:36px; min-width:36px; border-radius:18px; background:var(--fz-grund); color:var(--fz-grau);
     display:inline-flex; align-items:center; justify-content:center; padding:0 9px; }
   .rund.breit { padding:0 6px 0 12px; }
   .mini { --mdc-icon-size:18px; }
-  .tab { padding:9px 16px; border-radius:21px; color:var(--fz-grau); font-size:1.05em; font-weight:600; }
+  .tab { padding:7px 14px; border-radius:18px; color:var(--fz-grau); font-size:1em; font-weight:600; }
   .tab.aktiv { background:var(--fz-blau); color:var(--primary-color, #3f7fe0); }
   .dropdown { position:relative; }
   .menue { position:absolute; top:48px; left:0; z-index:5; background:var(--fz-karte); border-radius:14px; padding:6px;
@@ -898,17 +900,18 @@ FamilienzentralePanel.css = `
   .menue button { text-align:left; padding:10px 14px; border-radius:10px; font-weight:600; }
   .menue button.aktiv, .menue button:hover { background:var(--fz-grund); }
   .kopf-rechts { display:flex; align-items:center; gap:10px; }
-  .avatar { width:64px; height:64px; border-radius:50%; padding:4px; border:4px solid var(--ring, var(--fz-linie));
+  .avatar { width:52px; height:52px; border-radius:50%; padding:3px; border:3px solid var(--ring, var(--fz-linie));
     display:flex; align-items:center; justify-content:center; transition:transform .15s, opacity .15s; background:var(--fz-karte); }
   .avatar img, .avatar span { width:100%; height:100%; border-radius:50%; object-fit:cover; display:flex;
-    align-items:center; justify-content:center; font-weight:800; font-size:1.3em; }
+    align-items:center; justify-content:center; font-weight:800; font-size:1.15em; }
+  .avatar span ha-icon { --mdc-icon-size:26px; }
   .avatar.aktiv { transform:scale(1.08); box-shadow:0 4px 14px rgba(0,0,0,.15); }
   .avatar.dimm { opacity:.4; }
   .avatar.familie { --ring:var(--fz-linie); color:var(--fz-grau); }
-  .avatar.familie ha-icon { --mdc-icon-size:34px; }
+  .avatar.familie ha-icon { --mdc-icon-size:28px; }
   .avatar.familie.aktiv { --ring:var(--fz-grau); color:var(--fz-text); }
   .zahnrad { color:var(--fz-grau); padding:8px; }
-  .zahnrad ha-icon { --mdc-icon-size:34px; }
+  .zahnrad ha-icon { --mdc-icon-size:28px; }
 
   #inhalt { flex:1; min-height:0; display:flex; flex-direction:column; }
   .hinweis { padding:40px; text-align:center; color:var(--fz-grau); line-height:1.7; }
@@ -918,8 +921,8 @@ FamilienzentralePanel.css = `
   .woche { flex:1; min-height:0; display:flex; flex-direction:column; background:var(--fz-karte); }
   .wkopf, .ganzzeile, .rinnen { display:grid; }
   .wkopf { border-bottom:1px solid var(--fz-linie); }
-  .tagkopf { display:flex; align-items:center; justify-content:space-between; padding:12px 10px 10px 14px;
-    font-size:1.55em; color:var(--fz-grau); }
+  .tagkopf { display:flex; align-items:center; justify-content:space-between; padding:8px 8px 7px 12px;
+    font-size:1.2em; color:var(--fz-grau); }
   .tagname { white-space:nowrap; }
   .heute-kreis { display:inline-flex; align-items:center; justify-content:center; min-width:1.6em; height:1.6em;
     padding:0 .2em; border-radius:999px; background:var(--fz-akzent); color:#fff; font-weight:700; }
@@ -927,8 +930,8 @@ FamilienzentralePanel.css = `
   .plus:hover { opacity:1; }
   .ganzzeile { border-bottom:1px solid var(--fz-linie); }
   .ganzzelle { padding:6px 4px; display:flex; flex-direction:column; gap:4px; border-left:1px solid var(--fz-linie); min-height:12px; }
-  .balken { display:flex; align-items:center; gap:6px; padding:6px 10px; border-radius:6px; border-left:5px solid;
-    font-size:1.1em; font-weight:600; cursor:pointer; }
+  .balken { display:flex; align-items:center; gap:6px; padding:4px 8px; border-radius:6px; border-left:4px solid;
+    font-size:.9em; font-weight:600; cursor:pointer; }
   .balken .btitel { flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .raster { flex:1; min-height:0; overflow-y:auto; position:relative; }
   .rinnen { position:relative; }
@@ -937,15 +940,16 @@ FamilienzentralePanel.css = `
   .stunde:first-child { transform:none; }
   .tagspalte { position:relative; border-left:1px solid var(--fz-linie);
     background-image:repeating-linear-gradient(to bottom, var(--fz-linie) 0 1px, transparent 1px ${STD}px); }
-  .block { position:absolute; border-radius:6px; border-left:5px solid; padding:6px 10px; overflow:hidden; cursor:pointer;
+  .block { position:absolute; border-radius:6px; border-left:4px solid; padding:4px 8px; overflow:hidden; cursor:pointer;
     box-shadow:0 1px 2px rgba(0,0,0,.05); }
-  .block .btitel { font-size:1.15em; font-weight:700; line-height:1.2; }
-  .block.kurz .btitel { font-size:1em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .bzeit { font-size:.82em; color:var(--fz-grau); margin-top:2px; }
-  .bbadges { position:absolute; right:6px; bottom:6px; display:flex; gap:3px; }
+  .block .btitel { font-size:.9em; font-weight:700; line-height:1.2; }
+  .block.kurz .btitel { font-size:.85em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .bzeit { font-size:.75em; color:var(--fz-grau); margin-top:1px; }
+  .bbadges { position:absolute; right:5px; bottom:4px; display:flex; gap:3px; }
   .bbadges.statisch { position:static; }
-  .badge { width:20px; height:20px; border-radius:5px; font-size:.7em; font-weight:800; display:inline-flex;
+  .badge { width:17px; height:17px; border-radius:4px; font-size:.65em; font-weight:800; display:inline-flex;
     align-items:center; justify-content:center; flex:none; }
+  .badge ha-icon { --mdc-icon-size:13px; }
   .jetzt { position:absolute; height:2px; background:var(--fz-akzent); pointer-events:none; z-index:2; }
   .jetzt::before { content:""; position:absolute; left:-6px; top:-5px; width:12px; height:12px; border-radius:50%; background:var(--fz-akzent); }
 
@@ -956,7 +960,7 @@ FamilienzentralePanel.css = `
   .zelle { background:var(--fz-karte); padding:6px; min-height:max(110px, calc((100vh - 230px) / 6)); overflow:hidden; }
   .zelle.aus { opacity:.45; }
   .nr { font-weight:700; color:var(--fz-grau); margin-bottom:4px; cursor:pointer; }
-  .chip { font-size:.85em; border-left:4px solid; border-radius:5px; padding:3px 6px; margin:3px 0; white-space:nowrap;
+  .chip { font-size:.78em; border-left:4px solid; border-radius:5px; padding:3px 6px; margin:3px 0; white-space:nowrap;
     overflow:hidden; text-overflow:ellipsis; cursor:pointer; font-weight:600; }
   .mehr { font-size:.8em; color:var(--fz-grau); cursor:pointer; padding-left:4px; }
 
@@ -969,7 +973,7 @@ FamilienzentralePanel.css = `
   .lkarte { display:flex; align-items:center; gap:10px; border-left:5px solid; border-radius:8px; padding:10px 12px;
     margin-bottom:8px; cursor:pointer; }
   .lkarte > div:first-child { flex:1; min-width:0; }
-  .lkarte .btitel { font-weight:700; font-size:1.1em; }
+  .lkarte .btitel { font-weight:700; font-size:.95em; }
 
   /* Dialoge */
   .overlay { position:fixed; inset:0; background:rgba(20,24,35,.45); display:flex; align-items:center;

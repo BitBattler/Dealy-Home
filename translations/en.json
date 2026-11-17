@@ -20,6 +20,7 @@
         "menu_options": {
           "module": "🧩 Modules on/off",
           "personen": "👨‍👩‍👦 People, colours & phones",
+          "haustiere": "🐕 Pets",
           "kalender": "📅 Calendars & push",
           "kindersicherung": "🔒 Child lock (parent PIN)"
         }
@@ -50,6 +51,27 @@
           "farbe": "Events of this person are shown in this colour.",
           "stichwoerter": "Comma separated. If one of them is in the title, the event belongs to this person.",
           "benachrichtigung": "Receives pushes, e.g. for new events."
+        }
+      },
+      "haustiere": {
+        "title": "Pets",
+        "description": "Pets appear like family members in the calendar – with an icon instead of a photo.",
+        "data": {
+          "behalten": "Existing pets (deselect = remove)",
+          "neu": "Add a new pet"
+        }
+      },
+      "haustier": {
+        "title": "Add pet",
+        "data": {
+          "name": "Name",
+          "icon": "Icon",
+          "farbe": "Colour",
+          "stichwoerter": "Keywords in the event title",
+          "weiteres": "Add another one afterwards"
+        },
+        "data_description": {
+          "stichwoerter": "Comma separated. Empty = the name."
         }
       },
       "kalender": {
