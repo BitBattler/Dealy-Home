@@ -273,6 +273,7 @@ class FamilienzentralePanel extends HTMLElement {
     this._menu.hass = this._hass;
     this._menu.narrow = this._narrow;
     this._root.addEventListener("click", (e) => this._klick(e));
+    document.addEventListener("fullscreenchange", () => this._zeichneKopf());
     this._root.addEventListener("submit", (e) => {
       e.preventDefault();
       if (this._neu) this._speichern();
@@ -291,6 +292,23 @@ class FamilienzentralePanel extends HTMLElement {
     t.innerHTML = `<div class="toast">${esc(text)}</div>`;
     clearTimeout(this._toastTimer);
     this._toastTimer = setTimeout(() => { t.innerHTML = ""; }, 2500);
+  }
+
+  // Vollbild fürs Wanddisplay (blendet HA-Seitenleiste und Browserleisten aus)
+  _vollbildKnopf() {
+    if (!document.fullscreenEnabled) return "";
+    const an = !!document.fullscreenElement;
+    return `<button class="zahnrad" data-a="vollbild" title="${an ? "Vollbild beenden" : "Vollbild"}">
+      <ha-icon icon="${an ? "mdi:fullscreen-exit" : "mdi:fullscreen"}"></ha-icon></button>`;
+  }
+
+  async _vollbild() {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await this.requestFullscreen({ navigationUI: "hide" });
+    } catch (err) {
+      this._zeigeToast("Vollbild ist hier nicht möglich.");
+    }
   }
 
   _navigiere(pfad) {
@@ -362,7 +380,12 @@ class FamilienzentralePanel extends HTMLElement {
     }
     if (a === "ganztag" && this._neu) { this._formularMerken(); this._zeichneDialog(); return; }
     if (a === "aktualisieren") { this._laden(); this._zeigeToast("Aktualisiert"); return; }
-    if (a === "einstellungen") { this._navigiere("/config/integrations/integration/familienzentrale"); return; }
+    if (a === "vollbild") { this._vollbild(); return; }
+    if (a === "einstellungen") {
+      if (document.fullscreenElement) document.exitFullscreen();
+      this._navigiere("/config/integrations/integration/familienzentrale");
+      return;
+    }
     if (a === "bearbeiten") { this._navigiere("/calendar"); return; }
     if (a.startsWith("seite-")) {
       const s = a.slice(6);
@@ -864,7 +887,7 @@ class FamilienzentralePanel extends HTMLElement {
         <button class="rund ${this._bearbeiten ? "an" : ""}" data-a="${this._bearbeiten ? "bearbeiten-aus" : "bearbeiten-an"}"
           title="${this._bearbeiten ? "Bearbeiten beenden" : "Bearbeiten (Eltern)"}">
           <ha-icon icon="${this._bearbeiten ? "mdi:check" : "mdi:pencil"}"></ha-icon></button>
-        <button class="zahnrad" data-a="einstellungen" title="Einstellungen"><ha-icon icon="mdi:cog"></ha-icon></button>
+        ${this._vollbildKnopf()}<button class="zahnrad" data-a="einstellungen" title="Einstellungen"><ha-icon icon="mdi:cog"></ha-icon></button>
       </div>`;
     if (this._narrow) this._root.getElementById("menuplatz").appendChild(this._menu);
   }
@@ -971,7 +994,7 @@ class FamilienzentralePanel extends HTMLElement {
     return `<div class="glaeser" style="--anzahl:${personen.length}">${personen.map((p) => {
       const n = this._punkteVon(p.entity_id);
       const sterne = Math.min(n, 80);
-      return `<button class="glaskarte" data-a="glas-${p.entity_id}" style="--ring:${p.farbe}">
+      return `<div class="glaskarte" role="button" tabindex="0" data-a="glas-${p.entity_id}" style="--ring:${p.farbe}">
         <span class="gfoto">${p.bild ? `<img src="${esc(p.bild)}" alt="">`
           : `<span style="background:${pastell(p.farbe, 45)}">${esc(initial(p.name))}</span>`}</span>
         <b class="gname">${esc(p.name)}</b>
@@ -981,7 +1004,7 @@ class FamilienzentralePanel extends HTMLElement {
             || `<span class="leer-glas">Noch leer</span>`}</span>
         </span>
         ${this._bearbeiten ? `<span class="grau">${n} ⭐</span>` : ""}
-      </button>`;
+      </div>`;
     }).join("")}</div>`;
   }
 
@@ -1109,7 +1132,7 @@ class FamilienzentralePanel extends HTMLElement {
           <ha-icon icon="mdi:creation"></ha-icon><span>Woche vorschlagen</span></button>
         <button class="knopf-gross" data-a="einkaufen" title="Zutaten dieser Woche auf die Einkaufsliste">
           <ha-icon icon="mdi:cart-plus"></ha-icon><span>Auf die Einkaufsliste</span></button>
-        <button class="zahnrad" data-a="einstellungen" title="Einstellungen"><ha-icon icon="mdi:cog"></ha-icon></button>
+        ${this._vollbildKnopf()}<button class="zahnrad" data-a="einstellungen" title="Einstellungen"><ha-icon icon="mdi:cog"></ha-icon></button>
       </div>`;
     if (this._narrow) this._root.getElementById("menuplatz").appendChild(this._menu);
   }
@@ -1457,7 +1480,7 @@ class FamilienzentralePanel extends HTMLElement {
       <div class="kopf-rechts">
         <button class="avatar familie ${this._filter ? "" : "aktiv"}" data-a="alle" title="Alle"><ha-icon icon="mdi:account-group"></ha-icon></button>
         ${avatare}
-        <button class="zahnrad" data-a="einstellungen" title="Einstellungen"><ha-icon icon="mdi:cog"></ha-icon></button>
+        ${this._vollbildKnopf()}<button class="zahnrad" data-a="einstellungen" title="Einstellungen"><ha-icon icon="mdi:cog"></ha-icon></button>
       </div>`;
     if (this._narrow) this._root.getElementById("menuplatz").appendChild(this._menu);
   }
@@ -1748,7 +1771,7 @@ FamilienzentralePanel.css = `
     --fz-grau: var(--secondary-text-color, #7b8191);
     --fz-akzent: #f26b3a;
     --fz-blau: color-mix(in srgb, var(--primary-color, #3f7fe0) 18%, var(--fz-karte));
-    display:block; height:100%; background:var(--fz-grund); color:var(--fz-text);
+    display:block; height:100vh; height:100dvh; width:100%; overflow:hidden; background:var(--fz-grund); color:var(--fz-text);
     font-family: Nunito, var(--ha-font-family-body, Roboto), sans-serif; font-size:14px;
   }
   * { box-sizing:border-box; }
@@ -1998,9 +2021,10 @@ FamilienzentralePanel.css = `
   }
   /* Seite „Sterne“ */
   /* Gläser füllen den ganzen Inhaltsbereich: eine Spalte pro Person, volle Höhe */
-  .glaeser { flex:1; min-height:0; padding:16px; display:grid; gap:16px;
+  .glaeser { flex:1 1 0; height:100%; min-height:0; padding:16px; display:grid; gap:16px;
     grid-template-columns:repeat(var(--anzahl, 3), minmax(0, 1fr)); grid-template-rows:minmax(0, 1fr); }
-  .glaskarte { display:flex; flex-direction:column; align-items:center; gap:10px; padding:16px 14px; min-height:0;
+  .glaskarte { display:flex; flex-direction:column; align-items:center; gap:10px; padding:16px 14px;
+    height:100%; min-height:0; cursor:pointer; box-sizing:border-box;
     border-radius:24px; background:var(--fz-karte); border-top:8px solid var(--ring); box-shadow:0 2px 8px rgba(0,0,0,.06); }
   .glaskarte:active { transform:scale(.99); }
   .gfoto { flex:none; width:clamp(72px, 12cqi, 150px); aspect-ratio:1; border-radius:50%; padding:5px;
@@ -2008,15 +2032,15 @@ FamilienzentralePanel.css = `
   .gfoto img, .gfoto span { width:100%; height:100%; border-radius:50%; object-fit:cover; display:flex;
     align-items:center; justify-content:center; font-size:2.6em; font-weight:800; }
   .gname { flex:none; font-size:clamp(1.1em, 2.4cqi, 1.9em); font-weight:800; }
-  .glas.gross { flex:1; min-height:0; width:100%; display:flex; flex-direction:column; }
+  .glas.gross { flex:1 1 0; min-height:0; width:100%; display:flex; flex-direction:column; }
   .glas.gross .deckel { flex:none; display:block; height:clamp(14px, 2cqi, 26px); margin:0 12%; }
-  .glas.gross .glas-innen { flex:1; min-height:0; overflow:hidden; border-width:6px; border-radius:22px 22px 60px 60px;
+  .glas.gross .glas-innen { flex:1 1 0; min-height:0; overflow:hidden; border-width:6px; border-radius:22px 22px 60px 60px;
     padding:12px; gap:4px; align-content:flex-start; }
   .glas.gross .glas-innen span { font-size:clamp(1.3em, 3.2cqi, 2.6em); }
   .glas.gross .leer-glas { font-size:clamp(1em, 2cqi, 1.4em) !important; }
   /* Schmal: zwei Spalten, dafür scrollen; jedes Glas bleibt groß */
   @container fz (max-width: 760px) {
-    .glaeser { grid-template-columns:repeat(min(var(--anzahl, 3), 2), minmax(0, 1fr)); grid-template-rows:none;
+    .glaeser { height:auto; grid-template-columns:repeat(min(var(--anzahl, 3), 2), minmax(0, 1fr)); grid-template-rows:none;
       grid-auto-rows:minmax(70vh, auto); overflow:auto; padding:10px; gap:10px; }
     .glas.gross .glas-innen span { font-size:1.4em; }
   }
@@ -2077,6 +2101,38 @@ FamilienzentralePanel.css = `
   }
 
   /* =========================================================
+     Große Navigation fürs Touch-Wanddisplay
+     ========================================================= */
+  #leiste { width:116px; gap:6px; padding:16px 0; }
+  .logo { width:64px; height:64px; border-radius:18px; margin-bottom:16px; }
+  .logo ha-icon { --mdc-icon-size:36px; }
+  .rail { width:100px; min-height:88px; padding:12px 0; border-radius:18px; gap:6px; font-size:.95em; justify-content:center; }
+  .rail ha-icon { --mdc-icon-size:38px; }
+  .rail span { max-width:96px; }
+  .rail.aktiv { background:color-mix(in srgb, var(--fz-akzent) 14%, var(--fz-karte)); color:var(--fz-text);
+    box-shadow:inset 4px 0 0 var(--fz-akzent); }
+  .rail.klein { min-height:64px; }
+  .fab { width:76px; height:76px; margin-top:8px; }
+  .fab ha-icon { --mdc-icon-size:42px; }
+
+  /* Touch-Geräte: alle Knöpfe im Kopf mit großer Trefferfläche */
+  @media (pointer: coarse), (min-width: 1600px) {
+    .rund { height:52px; min-width:52px; border-radius:26px; }
+    .rund ha-icon { --mdc-icon-size:28px; }
+    .tab { padding:12px 18px; font-size:1.1em; }
+    .zahnrad { padding:10px; }
+    .zahnrad ha-icon { --mdc-icon-size:34px; }
+    .knopf-gross { padding:13px 20px; font-size:1.05em; }
+    .knopf-gross ha-icon { --mdc-icon-size:28px; }
+    .avatar { width:62px; height:62px; }
+    .kindwahl { padding:6px 16px 6px 6px; }
+    .avatar.klein { width:52px; height:52px; }
+    .plus { font-size:1.6em; padding:0 8px; }
+    .knoepfe button { padding:14px 22px; font-size:1.05em; }
+    .formular input, .formular select, .formular textarea { padding:14px; }
+  }
+
+  /* =========================================================
      Layout-Korrekturen gegen Überlappungen.
      Container-Abfragen richten sich nach dem Platz des Panels selbst
      (HA-Seitenleiste und Modul-Leiste sind schon abgezogen).
@@ -2084,7 +2140,7 @@ FamilienzentralePanel.css = `
   main { container-type:inline-size; container-name:fz; }
   #leiste { overflow-y:auto; overflow-x:hidden; scrollbar-width:none; }
   #leiste::-webkit-scrollbar { display:none; }
-  .rail span { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:62px; }
+  .rail span { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:96px; }
 
   /* Kopf: darf umbrechen, rechte Seite rückt dann unter den Titel */
   #kopf { flex-wrap:wrap; row-gap:8px; }
