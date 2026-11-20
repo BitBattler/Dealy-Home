@@ -1,7 +1,7 @@
 {
   "domain": "familienzentrale",
   "name": "Familienzentrale",
-  "after_dependencies": ["ai_task", "calendar", "notify", "todo"],
+  "after_dependencies": ["ai_task", "calendar", "counter", "notify", "todo"],
   "codeowners": ["@BitBattler"],
   "config_flow": true,
   "dependencies": ["frontend", "http", "panel_custom", "person", "websocket_api"],
@@ -11,5 +11,5 @@
   "issue_tracker": "https://github.com/BitBattler/Dealy-Home/issues",
   "requirements": [],
   "single_config_entry": true,
-  "version": "0.5.0"
+  "version": "0.6.0"
 }

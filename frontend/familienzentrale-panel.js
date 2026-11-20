@@ -22,6 +22,10 @@ const LEISTE = [
   { key: "listen", icon: "mdi:clipboard-list", label: "Listen" },
 ];
 
+// Modul-Schlüssel -> Seite im Panel
+const SEITEN = { kalender: "kalender", essensplan: "essen", routinen: "aufgaben", punkte: "schaetze" };
+const ZEIT_NAME = { morgen: "🌅 Morgen", tag: "☀️ Tag", abend: "🌙 Abend" };
+
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g,
   (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const pad = (n) => String(n).padStart(2, "0");
@@ -81,6 +85,12 @@ class FamilienzentralePanel extends HTMLElement {
     this._slot = null;              // Dialog: Mahlzeit wählen
     this._rezept = null;            // Dialog: Rezept bearbeiten
     this._ki = null;                // Dialog: KI (Rezept / Woche)
+    // Aufgaben & Schätze
+    this._kinder = null;            // Daten vom Backend
+    this._kind = null;              // gewählte Person (entity_id)
+    this._bearbeiten = false;       // Eltern-Bearbeitungsmodus
+    this._pin = null;               // {wert, bis} – gemerkte PIN (5 Minuten)
+    this._kdlg = null;              // Dialog (pin | routine | belohnung | einloesen | korrektur)
   }
 
   // ---------------- HA-Schnittstelle ----------------
@@ -90,7 +100,8 @@ class FamilienzentralePanel extends HTMLElement {
     if (this._menu) this._menu.hass = hass;
     if (erst) {
       const mod = this._module();
-      this._seite = mod.includes("kalender") || !mod.includes("essensplan") ? "kalender" : "essen";
+      const erstes = Object.keys(SEITEN).find((k) => mod.includes(k));
+      this._seite = SEITEN[erstes] || "kalender";
       this._aufbauen();
       this._sig = this._signatur();
       this._laden();
@@ -148,6 +159,7 @@ class FamilienzentralePanel extends HTMLElement {
   async _laden() {
     if (!this._hass) return;
     if (this._seite === "essen") { await this._ladeEssen(); return; }
+    if (this._seite === "aufgaben" || this._seite === "schaetze") { await this._ladeKinder(); return; }
     const nr = ++this._ladeNr;
     const kal = this._kalender();
     const { start, ende } = this._bereich();
@@ -299,12 +311,13 @@ class FamilienzentralePanel extends HTMLElement {
 
     const zu = () => {
       if (this._ki?.laeuft) return;   // während die KI schreibt, offen lassen
-      this._detail = null; this._neu = null; this._slot = null; this._rezept = null; this._ki = null;
+      this._detail = null; this._neu = null; this._slot = null; this._rezept = null; this._ki = null; this._kdlg = null;
       this._zeichneDialog();
     };
     if (a === "zu") { if (e.target === el) zu(); return; }
     if (a === "schliessen") { zu(); return; }
     if (this._klickEssen(a)) return;
+    if (this._klickKinder(a)) return;
     if (a === "speichern") { this._speichern(); return; }
     if (a === "loeschen") { this._loeschen(); return; }
     if (a === "ansehen" && this._neu?.ev) { this._detail = this._neu.ev; this._neu = null; this._zeichneDialog(); return; }
@@ -350,8 +363,9 @@ class FamilienzentralePanel extends HTMLElement {
     if (a === "bearbeiten") { this._navigiere("/calendar"); return; }
     if (a.startsWith("modul-")) {
       const k = a.slice(6);
-      if (k === "kalender" || k === "essensplan") {
-        this._seite = k === "kalender" ? "kalender" : "essen";
+      if (SEITEN[k]) {
+        this._seite = SEITEN[k];
+        this._bearbeiten = false;
         this._menuOffen = false;
         this._scrollNachJetzt = true;
         this._zeichnen();
@@ -570,6 +584,423 @@ class FamilienzentralePanel extends HTMLElement {
           </div>
         </form>
       </div>`;
+  }
+
+  // ======================= Aufgaben & Schätze =======================
+  _kinderListe() { return this._personen().filter((p) => p.entity_id.startsWith("person.")); }
+  _kindName(eid) { return this._personen().find((p) => p.entity_id === eid)?.name || eid; }
+  _punkteVon(eid) { return Number(this._kinder?.punkte?.[eid] || 0); }
+
+  async _ladeKinder() {
+    try {
+      this._kinder = await this._hass.callWS({ type: "familienzentrale/kinder/laden" });
+      this._fehler = "";
+    } catch (err) {
+      this._kinder = null;
+      this._fehler = err.message || String(err);
+    }
+    if (!this._kind || !this._kinderListe().some((p) => p.entity_id === this._kind)) {
+      const r = Object.values(this._kinder?.routinen || {});
+      this._kind = r[0]?.person || this._kinderListe()[0]?.entity_id || null;
+    }
+    this._zeichnen();
+  }
+
+  async _kws(daten, meldung) {
+    try {
+      this._kinder = await this._hass.callWS(daten);
+      if (meldung) this._zeigeToast(meldung);
+      this._zeichnen();
+      return true;
+    } catch (err) {
+      if (err.code === "pin_falsch") this._pin = null;
+      this._zeigeToast(`Fehler: ${err.message || err}`);
+      return false;
+    }
+  }
+
+  // Aktion mit Eltern-PIN ausführen (PIN wird 5 Minuten gemerkt)
+  _mitPin(aktion) {
+    if (!this._kinder?.pin) { aktion(""); return; }
+    if (this._pin && Date.now() < this._pin.bis) { aktion(this._pin.wert); return; }
+    this._kdlgZurueck = this._kdlg;
+    this._kdlg = { typ: "pin", eingabe: "", fehler: "", weiter: aktion };
+    this._zeichneDialog();
+  }
+
+  async _pinPruefen() {
+    const d = this._kdlg;
+    try {
+      const r = await this._hass.callWS({ type: "familienzentrale/kinder/pin_pruefen", pin: d.eingabe });
+      if (!r.ok) { d.eingabe = ""; d.fehler = "Falsche PIN"; this._zeichneDialog(); return; }
+      this._pin = { wert: d.eingabe, bis: Date.now() + 5 * 60 * 1000 };
+      this._kdlg = this._kdlgZurueck || null;
+      this._kdlgZurueck = null;
+      this._zeichneDialog();
+      d.weiter(this._pin.wert);
+    } catch (err) {
+      this._zeigeToast(`Fehler: ${err.message || err}`);
+    }
+  }
+
+  _klickKinder(a) {
+    if (this._seite !== "aufgaben" && this._seite !== "schaetze") return false;
+    const d = this._kdlg;
+    // PIN-Tastatur
+    if (d?.typ === "pin") {
+      if (a.startsWith("pin-") && /^\d$/.test(a.slice(4))) {
+        if (d.eingabe.length < 8) d.eingabe += a.slice(4);
+        d.fehler = "";
+        this._zeichneDialog();
+        return true;
+      }
+      if (a === "pin-del") { d.eingabe = d.eingabe.slice(0, -1); this._zeichneDialog(); return true; }
+      if (a === "pin-ok") { this._pinPruefen(); return true; }
+    }
+    if (["heute", "zurueck", "vor"].includes(a)) return true;
+    if (a.startsWith("kind-")) { this._kind = a.slice(5); this._zeichnen(); return true; }
+    if (a === "bearbeiten-an") { this._mitPin(() => { this._bearbeiten = true; this._zeichnen(); }); return true; }
+    if (a === "bearbeiten-aus") { this._bearbeiten = false; this._zeichnen(); return true; }
+
+    if (a.startsWith("aufgabe-")) { this._abhaken(...a.slice(8).split("|")); return true; }
+
+    if (a === "routine-neu" || (a === "neu" && this._seite === "aufgaben")) {
+      this._mitPin(() => {
+        this._kdlg = { typ: "routine", id: null, name: "", emoji: "", zeit: "morgen", person: this._kind,
+          aufgaben: "🪥 Zähne putzen | 1\n👕 Anziehen | 1" };
+        this._zeichneDialog();
+      });
+      return true;
+    }
+    if (a.startsWith("routine-edit-")) {
+      const id = a.slice(13);
+      const r = this._kinder.routinen[id];
+      this._mitPin(() => {
+        this._kdlg = { typ: "routine", id, name: r.name, emoji: r.emoji, zeit: r.zeit, person: r.person,
+          aufgaben: r.aufgaben.map((x) => `${x.emoji ? `${x.emoji} ` : ""}${x.name} | ${x.punkte}`).join("\n") };
+        this._zeichneDialog();
+      });
+      return true;
+    }
+    if (a === "routine-speichern") { this._routineSpeichern(); return true; }
+    if (a === "routine-loeschen") {
+      if (!d.loeschen) { this._formMerken(); d.loeschen = true; this._zeichneDialog(); return true; }
+      this._mitPin(async (pin) => {
+        this._kdlg = null;
+        this._zeichneDialog();
+        await this._kws({ type: "familienzentrale/kinder/routine_loeschen", pin, id: d.id }, "Routine gelöscht");
+      });
+      return true;
+    }
+
+    if (a === "belohnung-neu" || (a === "neu" && this._seite === "schaetze")) {
+      this._mitPin(() => {
+        this._kdlg = { typ: "belohnung", id: null, name: "", emoji: "", kosten: 10, sandi_sterne: 0 };
+        this._zeichneDialog();
+      });
+      return true;
+    }
+    if (a.startsWith("belohnung-edit-")) {
+      const id = a.slice(15);
+      const b = this._kinder.belohnungen[id];
+      this._mitPin(() => { this._kdlg = { typ: "belohnung", id, ...b }; this._zeichneDialog(); });
+      return true;
+    }
+    if (a === "belohnung-speichern") { this._belohnungSpeichern(); return true; }
+    if (a === "belohnung-loeschen") {
+      if (!d.loeschen) { this._formMerken(); d.loeschen = true; this._zeichneDialog(); return true; }
+      this._mitPin(async (pin) => {
+        this._kdlg = null;
+        this._zeichneDialog();
+        await this._kws({ type: "familienzentrale/kinder/belohnung_loeschen", pin, id: d.id }, "Belohnung gelöscht");
+      });
+      return true;
+    }
+
+    if (a === "einloesen-ok") {
+      this._mitPin(async (pin) => {
+        const b = this._kinder.belohnungen[d.id];
+        this._kdlg = null;
+        this._zeichneDialog();
+        await this._kws({ type: "familienzentrale/kinder/einloesen", pin, belohnung: d.id, person: this._kind },
+          `🎉 ${b.emoji || "🎁"} ${b.name} eingelöst!`);
+      });
+      return true;
+    }
+    if (a.startsWith("einloesen-")) { this._kdlg = { typ: "einloesen", id: a.slice(10) }; this._zeichneDialog(); return true; }
+
+    if (a === "korrektur") { this._kdlg = { typ: "korrektur", delta: 1, grund: "" }; this._zeichneDialog(); return true; }
+    if ((a === "korr-plus" || a === "korr-minus") && d?.typ === "korrektur") {
+      d.grund = this._root.querySelector("#ko-grund")?.value || "";
+      d.delta += a === "korr-plus" ? 1 : -1;
+      if (d.delta === 0) d.delta = a === "korr-plus" ? 1 : -1;
+      this._zeichneDialog();
+      return true;
+    }
+    if (a === "korrektur-ok" && d?.typ === "korrektur") {
+      d.grund = this._root.querySelector("#ko-grund")?.value || "";
+      this._mitPin(async (pin) => {
+        this._kdlg = null;
+        this._zeichneDialog();
+        await this._kws({ type: "familienzentrale/kinder/korrektur", pin, person: this._kind, delta: d.delta, grund: d.grund },
+          d.delta > 0 ? `⭐ +${d.delta} für ${this._kindName(this._kind)}` : `${d.delta} ⭐`);
+      });
+      return true;
+    }
+    return false;
+  }
+
+  async _abhaken(rid, aid) {
+    const r = this._kinder?.routinen?.[rid];
+    const aufgabe = r?.aufgaben.find((x) => x.id === aid);
+    if (!aufgabe) return;
+    const erledigt = !this._kinder.erledigt[aid];
+    // sofort anzeigen, Backend bestätigt
+    if (erledigt) this._kinder.erledigt[aid] = true; else delete this._kinder.erledigt[aid];
+    this._zeichneInhalt();
+    const alle = r.aufgaben.every((x) => this._kinder.erledigt[x.id]);
+    const ok = await this._kws({ type: "familienzentrale/kinder/abhaken", routine: rid, aufgabe: aid, erledigt });
+    if (ok && erledigt) {
+      this._zeigeToast(alle ? `🎉 ${r.name} geschafft! Super!` : `${aufgabe.emoji || "✅"} +${aufgabe.punkte} ⭐`);
+    }
+  }
+
+  _formMerken() {
+    const d = this._kdlg;
+    const f = (id) => this._root.querySelector(id);
+    if (d?.typ === "routine" && f("#ro-name")) {
+      Object.assign(d, { name: f("#ro-name").value, emoji: f("#ro-emoji").value, zeit: f("#ro-zeit").value,
+        person: f("#ro-person").value, aufgaben: f("#ro-aufgaben").value });
+    }
+    if (d?.typ === "belohnung" && f("#be-name")) {
+      Object.assign(d, { name: f("#be-name").value, emoji: f("#be-emoji").value,
+        kosten: Number(f("#be-kosten").value) || 0, sandi_sterne: Number(f("#be-sandi").value) || 0 });
+    }
+  }
+
+  _routineSpeichern() {
+    this._formMerken();
+    const d = this._kdlg;
+    if (!d.name.trim()) { this._zeigeToast("Bitte einen Namen eingeben."); return; }
+    const aufgaben = d.aufgaben.split("\n").map((z) => z.trim()).filter(Boolean).map((z) => {
+      const m = z.match(/^(\p{Extended_Pictographic}(?:️|‍\p{Extended_Pictographic})*)?\s*(.*?)\s*(?:\|\s*(\d+)\s*)?$/u);
+      return { emoji: m?.[1] || "", name: (m?.[2] || z).slice(0, 60), punkte: m?.[3] ? Number(m[3]) : 1 };
+    }).filter((x) => x.name);
+    if (!aufgaben.length) { this._zeigeToast("Bitte mindestens eine Aufgabe eintragen."); return; }
+    this._mitPin(async (pin) => {
+      this._kdlg = null;
+      this._zeichneDialog();
+      await this._kws({
+        type: "familienzentrale/kinder/routine_speichern", pin, ...(d.id ? { id: d.id } : {}),
+        name: d.name.trim(), emoji: d.emoji.trim(), zeit: d.zeit, person: d.person, aufgaben,
+      }, "Routine gespeichert ✔");
+    });
+  }
+
+  _belohnungSpeichern() {
+    this._formMerken();
+    const d = this._kdlg;
+    if (!d.name.trim()) { this._zeigeToast("Bitte einen Namen eingeben."); return; }
+    this._mitPin(async (pin) => {
+      this._kdlg = null;
+      this._zeichneDialog();
+      await this._kws({
+        type: "familienzentrale/kinder/belohnung_speichern", pin, ...(d.id ? { id: d.id } : {}),
+        name: d.name.trim(), emoji: d.emoji.trim(), kosten: Math.max(0, Math.round(d.kosten)),
+        sandi_sterne: Math.max(0, Math.round(d.sandi_sterne)),
+      }, "Belohnung gespeichert ✔");
+    });
+  }
+
+  _kinderKopf() {
+    const titel = this._panel?.config?.titel || "Familie";
+    const kinder = this._kinderListe();
+    const schaetze = this._seite === "schaetze";
+    this._root.getElementById("kopf").innerHTML = `
+      <div class="kopf-links">
+        <div class="titelzeile">${this._narrow ? '<span id="menuplatz"></span>' : ""}
+          <h1>${hhmm(new Date())} <span class="strich">|</span> ${schaetze ? "💎 Schätze" : "✅ Aufgaben"}</h1></div>
+        <div class="tabs"><span class="grau">${esc(titel)} · ${WT_LANG[wt(new Date())]}, ${ddmm(new Date())}</span></div>
+      </div>
+      <div class="kopf-rechts">
+        ${kinder.map((p) => `
+          <button class="kindwahl ${p.entity_id === this._kind ? "aktiv" : ""}" data-a="kind-${p.entity_id}" style="--ring:${p.farbe}">
+            <span class="avatar klein" style="--ring:${p.farbe}">${p.bild ? `<img src="${esc(p.bild)}" alt="">`
+              : `<span style="background:${pastell(p.farbe, 45)}">${esc(initial(p.name))}</span>`}</span>
+            <span class="kname">${esc(p.name)}<b>⭐ ${this._punkteVon(p.entity_id)}</b></span>
+          </button>`).join("")}
+        ${schaetze ? `<button class="rund" data-a="korrektur" title="Bonus / Abzug"><ha-icon icon="mdi:plus-minus-variant"></ha-icon></button>` : ""}
+        <button class="rund ${this._bearbeiten ? "an" : ""}" data-a="${this._bearbeiten ? "bearbeiten-aus" : "bearbeiten-an"}"
+          title="${this._bearbeiten ? "Bearbeiten beenden" : "Bearbeiten (Eltern)"}">
+          <ha-icon icon="${this._bearbeiten ? "mdi:check" : "mdi:pencil"}"></ha-icon></button>
+        <button class="zahnrad" data-a="einstellungen" title="Einstellungen"><ha-icon icon="mdi:cog"></ha-icon></button>
+      </div>`;
+    if (this._narrow) this._root.getElementById("menuplatz").appendChild(this._menu);
+  }
+
+  _aufgabenInhalt() {
+    const k = this._kinder;
+    if (!k) return `<div class="hinweis">${this._fehler ? esc(this._fehler) : "Lädt …"}</div>`;
+    if (!k.routinen_aktiv) return `<div class="hinweis">Das Modul „Kinder-Routinen“ ist ausgeschaltet.</div>`;
+    const ordnung = { morgen: 0, tag: 1, abend: 2 };
+    const h = new Date().getHours();
+    const jetzt = h < 11 ? "morgen" : h >= 17 ? "abend" : "tag";
+    const routinen = Object.entries(k.routinen).filter(([, r]) => r.person === this._kind)
+      .sort((a, b) => ordnung[a[1].zeit] - ordnung[b[1].zeit]);
+    let html = `<div class="kinder">`;
+    if (!routinen.length) {
+      html += `<div class="hinweis">Für ${esc(this._kindName(this._kind))} gibt es noch keine Routinen.<br>
+        <button class="knopf-gross" data-a="routine-neu">＋ Routine anlegen</button></div>`;
+    }
+    for (const [rid, r] of routinen) {
+      const fertig = r.aufgaben.filter((x) => k.erledigt[x.id]).length;
+      const prozent = r.aufgaben.length ? Math.round(fertig / r.aufgaben.length * 100) : 0;
+      html += `<section class="routine ${r.zeit === jetzt ? "jetzt" : ""} ${fertig === r.aufgaben.length ? "fertig" : ""}">
+        <div class="rkopf">
+          <span class="remoji">${esc(r.emoji || "📋")}</span>
+          <div class="rtitel"><b>${esc(r.name)}</b><span class="grau">${ZEIT_NAME[r.zeit]}</span></div>
+          <span class="rstand">${fertig === r.aufgaben.length ? "🎉" : `${fertig}/${r.aufgaben.length}`}</span>
+          ${this._bearbeiten ? `<button class="rund" data-a="routine-edit-${rid}"><ha-icon icon="mdi:pencil"></ha-icon></button>` : ""}
+        </div>
+        <div class="balken-fort"><span style="width:${prozent}%"></span></div>
+        <div class="kacheln">${r.aufgaben.map((x) => `
+          <button class="kachel ${k.erledigt[x.id] ? "erledigt" : ""}" data-a="aufgabe-${rid}|${x.id}">
+            <span class="kemoji">${esc(x.emoji || "⭐")}</span>
+            <span class="ktext">${esc(x.name)}</span>
+            <span class="kpunkte">${k.erledigt[x.id] ? "✓" : `+${x.punkte} ⭐`}</span>
+          </button>`).join("")}</div>
+      </section>`;
+    }
+    if (this._bearbeiten && routinen.length) {
+      html += `<button class="rkarte neu" data-a="routine-neu"><span class="eemoji">＋</span><b>Neue Routine</b></button>`;
+    }
+    return html + `</div>`;
+  }
+
+  _schaetzeInhalt() {
+    const k = this._kinder;
+    if (!k) return `<div class="hinweis">${this._fehler ? esc(this._fehler) : "Lädt …"}</div>`;
+    if (!k.punkte_aktiv) return `<div class="hinweis">Das Modul „Punkte & Belohnungen“ ist ausgeschaltet.</div>`;
+    const p = this._punkteVon(this._kind);
+    const person = this._personen().find((x) => x.entity_id === this._kind);
+    const belohnungen = Object.entries(k.belohnungen).sort((a, b) => a[1].kosten - b[1].kosten);
+    let html = `<div class="kinder">
+      <div class="schatz" style="--ring:${person?.farbe || NEUTRAL}">
+        <span class="schatz-emoji">💎</span>
+        <div><span class="grau">${esc(person?.name || "")} hat</span><b>${p} ⭐</b></div>
+      </div>
+      <div class="rgitter">`;
+    for (const [id, b] of belohnungen) {
+      const leistbar = p >= b.kosten;
+      html += `<button class="belohnung ${leistbar ? "leistbar" : ""}" data-a="${this._bearbeiten ? `belohnung-edit-${id}` : `einloesen-${id}`}">
+        <span class="eemoji">${esc(b.emoji || "🎁")}</span>
+        <b>${esc(b.name)}</b>
+        <span class="preis">⭐ ${b.kosten}</span>
+        ${b.sandi_sterne ? `<span class="tv">📺 +${b.sandi_sterne} Sandi-Stern${b.sandi_sterne > 1 ? "e" : ""}</span>` : ""}
+        ${!leistbar && !this._bearbeiten ? `<span class="grau">noch ${b.kosten - p} ⭐</span>` : ""}
+      </button>`;
+    }
+    if (this._bearbeiten || !belohnungen.length) {
+      html += `<button class="rkarte neu" data-a="belohnung-neu"><span class="eemoji">＋</span><b>Neue Belohnung</b></button>`;
+    }
+    html += `</div>`;
+    const verlauf = (k.verlauf || []).filter((v) => v.person === this._kind).slice(-20).reverse();
+    if (verlauf.length) {
+      html += `<h3 class="vtitel">Verlauf</h3><div class="verlauf">${verlauf.map((v) => {
+        const z = new Date(v.zeit);
+        return `<div class="vzeile"><span class="grau">${ddmm(z)} ${hhmm(z)}</span><span>${esc(v.text)}</span>
+          <b class="${v.punkte > 0 ? "plus" : "minus"}">${v.punkte > 0 ? "+" : ""}${v.punkte} ⭐</b></div>`;
+      }).join("")}</div>`;
+    }
+    return html + `</div>`;
+  }
+
+  _kinderDialog() {
+    const d = this._kdlg;
+    const k = this._kinder;
+    const huelle = (inhalt, klasse = "") => `<div class="overlay" data-a="zu"><form class="karte formular ${klasse}">${inhalt}</form></div>`;
+    if (d.typ === "pin") {
+      const tasten = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "del", "0", "ok"];
+      return huelle(`
+        <h2>🔒 Eltern-PIN</h2>
+        <div class="pinpunkte">${d.eingabe ? "●".repeat(d.eingabe.length) : "<span class='grau'>PIN eingeben</span>"}</div>
+        ${d.fehler ? `<p class="pinfehler">${esc(d.fehler)}</p>` : ""}
+        <div class="pinfeld">${tasten.map((t) => t === "del"
+          ? `<button type="button" data-a="pin-del">⌫</button>`
+          : t === "ok" ? `<button type="button" class="ok" data-a="pin-ok">OK</button>`
+          : `<button type="button" data-a="pin-${t}">${t}</button>`).join("")}</div>
+        <div class="knoepfe"><span class="platz"></span><button type="button" class="zweit" data-a="schliessen">Abbrechen</button></div>`, "pin");
+    }
+    if (d.typ === "routine") {
+      return huelle(`
+        <h2>${d.id ? "Routine bearbeiten" : "Neue Routine"}</h2>
+        <div class="reihe">
+          <label style="flex:0 0 76px">Emoji<input id="ro-emoji" value="${esc(d.emoji)}" placeholder="🌅" maxlength="4"></label>
+          <label>Name<input id="ro-name" value="${esc(d.name)}" placeholder="z. B. Morgenroutine" autocomplete="off"></label>
+        </div>
+        <div class="reihe">
+          <label>Wann<select id="ro-zeit">${Object.entries(ZEIT_NAME).map(([z, n]) =>
+            `<option value="${z}" ${z === d.zeit ? "selected" : ""}>${n}</option>`).join("")}</select></label>
+          <label>Für<select id="ro-person">${this._kinderListe().map((p) =>
+            `<option value="${p.entity_id}" ${p.entity_id === d.person ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select></label>
+        </div>
+        <label>Aufgaben – eine pro Zeile: „Emoji Name | Punkte“
+          <textarea id="ro-aufgaben" rows="7">${esc(d.aufgaben)}</textarea></label>
+        <div class="knoepfe">
+          ${d.id ? `<button type="button" class="gefahr" data-a="routine-loeschen">${d.loeschen ? "Wirklich löschen?" : "🗑 Löschen"}</button>` : ""}
+          <span class="platz"></span>
+          <button type="button" class="zweit" data-a="schliessen">Abbrechen</button>
+          <button type="button" data-a="routine-speichern">Speichern</button>
+        </div>`, "breit");
+    }
+    if (d.typ === "belohnung") {
+      return huelle(`
+        <h2>${d.id ? "Belohnung bearbeiten" : "Neue Belohnung"}</h2>
+        <div class="reihe">
+          <label style="flex:0 0 76px">Emoji<input id="be-emoji" value="${esc(d.emoji)}" placeholder="🍦" maxlength="4"></label>
+          <label>Name<input id="be-name" value="${esc(d.name)}" placeholder="z. B. Eis essen gehen" autocomplete="off"></label>
+        </div>
+        <div class="reihe">
+          <label>Kosten (⭐)<input id="be-kosten" type="number" min="0" value="${d.kosten}"></label>
+          <label>📺 Sandi-Sterne dazu<input id="be-sandi" type="number" min="0" max="50" value="${d.sandi_sterne || 0}"></label>
+        </div>
+        <p class="grau">Sandi-Sterne werden beim Einlösen auf den Sandi-Zähler gutgeschrieben und als Fernsehzeit verrechnet.
+          ${k?.sandi ? "" : "⚠️ Noch kein Sandi-Zähler gewählt (⚙️ → Konfigurieren → ⭐ Punkte & Belohnungen)."}</p>
+        <div class="knoepfe">
+          ${d.id ? `<button type="button" class="gefahr" data-a="belohnung-loeschen">${d.loeschen ? "Wirklich löschen?" : "🗑 Löschen"}</button>` : ""}
+          <span class="platz"></span>
+          <button type="button" class="zweit" data-a="schliessen">Abbrechen</button>
+          <button type="button" data-a="belohnung-speichern">Speichern</button>
+        </div>`);
+    }
+    if (d.typ === "einloesen") {
+      const b = k.belohnungen[d.id];
+      const p = this._punkteVon(this._kind);
+      const ok = p >= b.kosten;
+      return huelle(`
+        <div class="einloesen-gross">${esc(b.emoji || "🎁")}</div>
+        <h2 style="text-align:center">${esc(b.name)}</h2>
+        <p style="text-align:center">${esc(this._kindName(this._kind))} hat <b>${p} ⭐</b> · kostet <b>${b.kosten} ⭐</b>
+          ${ok ? `<br>danach noch <b>${p - b.kosten} ⭐</b>` : `<br>Es fehlen noch <b>${b.kosten - p} ⭐</b> – weiter so!`}</p>
+        ${b.sandi_sterne ? `<p class="grau" style="text-align:center">📺 Dazu gibt es ${b.sandi_sterne} Sandi-Stern${b.sandi_sterne > 1 ? "e" : ""} = Fernsehzeit.</p>` : ""}
+        <div class="knoepfe"><span class="platz"></span>
+          <button type="button" class="zweit" data-a="schliessen">Abbrechen</button>
+          <button type="button" data-a="einloesen-ok" ${ok ? "" : "disabled"}>🎁 Einlösen</button>
+        </div>`);
+    }
+    if (d.typ === "korrektur") {
+      return huelle(`
+        <h2>Bonus / Abzug für ${esc(this._kindName(this._kind))}</h2>
+        <div class="korr"><button type="button" class="rund gross" data-a="korr-minus">−</button>
+          <b class="${d.delta > 0 ? "plus" : "minus"}">${d.delta > 0 ? "+" : ""}${d.delta} ⭐</b>
+          <button type="button" class="rund gross" data-a="korr-plus">+</button></div>
+        <label>Grund (freiwillig)<input id="ko-grund" value="${esc(d.grund)}" placeholder="z. B. beim Tischdecken geholfen"></label>
+        <div class="knoepfe"><span class="platz"></span>
+          <button type="button" class="zweit" data-a="schliessen">Abbrechen</button>
+          <button type="button" data-a="korrektur-ok">Übernehmen</button>
+        </div>`);
+    }
+    return "";
   }
 
   _mahlzeitName(m) { return { fruehstueck: "🥣 Frühstück", mittag: "🍝 Mittag", abend: "🌙 Abend" }[m] || m; }
@@ -890,7 +1321,7 @@ class FamilienzentralePanel extends HTMLElement {
     leiste.innerHTML = `
       <div class="logo" data-a="einstellungen" title="Familienzentrale"><ha-icon icon="mdi:home-heart"></ha-icon></div>
       ${eintraege.map((x) => `
-        <button class="rail ${(x.key === "kalender" && this._seite === "kalender") || (x.key === "essensplan" && this._seite === "essen") ? "aktiv" : ""}" data-a="modul-${x.key}">
+        <button class="rail ${SEITEN[x.key] === this._seite ? "aktiv" : ""}" data-a="modul-${x.key}">
           <ha-icon icon="${x.icon}"></ha-icon><span>${x.label}</span>
         </button>`).join("")}
       <div class="platz"></div>
@@ -901,6 +1332,7 @@ class FamilienzentralePanel extends HTMLElement {
   _zeichneKopf() {
     if (!this._root) return;
     if (this._seite === "essen") { this._essenKopf(); return; }
+    if (this._seite === "aufgaben" || this._seite === "schaetze") { this._kinderKopf(); return; }
     const kopf = this._root.getElementById("kopf");
     const m = this._modus();
     const titel = this._panel?.config?.titel || "Familie";
@@ -966,6 +1398,8 @@ class FamilienzentralePanel extends HTMLElement {
       return;
     }
     if (this._seite === "essen") { inhalt.innerHTML = this._essenInhalt(); return; }
+    if (this._seite === "aufgaben") { inhalt.innerHTML = this._aufgabenInhalt(); return; }
+    if (this._seite === "schaetze") { inhalt.innerHTML = this._schaetzeInhalt(); return; }
     if (!this._kalender().length) {
       inhalt.innerHTML = `<div class="hinweis">Noch kein Kalender gewählt.<br>
         ⚙️ → Konfigurieren → „📅 Kalender &amp; Push“.</div>`;
@@ -1164,6 +1598,7 @@ class FamilienzentralePanel extends HTMLElement {
   // ---------- Dialoge ----------
   _zeichneDialog() {
     const dlg = this._root.getElementById("dialog");
+    if (this._kdlg) { dlg.innerHTML = this._kinderDialog(); return; }
     if (this._ki) { dlg.innerHTML = this._kiDialog(); return; }
     if (this._rezept) { dlg.innerHTML = this._rezeptDialog(); return; }
     if (this._slot) { dlg.innerHTML = this._slotDialog(); return; }
@@ -1401,6 +1836,63 @@ FamilienzentralePanel.css = `
   .ki-funken { display:inline-block; animation:fz-dreh 1.4s linear infinite; font-size:1.3em; }
   @keyframes fz-dreh { from { transform:rotate(0deg) scale(1); } 50% { transform:rotate(180deg) scale(1.25); } to { transform:rotate(360deg) scale(1); } }
   button[disabled] { opacity:.5; cursor:default; }
+
+  /* Aufgaben & Schätze */
+  .kindwahl { display:flex; align-items:center; gap:8px; padding:4px 12px 4px 4px; border-radius:999px;
+    border:2px solid transparent; }
+  .kindwahl.aktiv { border-color:var(--ring); background:color-mix(in srgb, var(--ring) 12%, var(--fz-karte)); }
+  .avatar.klein { width:40px; height:40px; padding:2px; border-width:2px; }
+  .kname { display:flex; flex-direction:column; align-items:flex-start; font-weight:700; line-height:1.15; }
+  .kname b { font-size:.85em; color:var(--fz-grau); }
+  .rund.an { background:var(--fz-akzent); color:#fff; }
+  .rund.gross { width:56px; height:56px; border-radius:28px; font-size:1.6em; }
+  .kinder { flex:1; overflow:auto; padding:14px 18px; display:flex; flex-direction:column; gap:14px; }
+  .routine { background:var(--fz-karte); border-radius:18px; padding:14px; box-shadow:0 1px 3px rgba(0,0,0,.06); }
+  .routine.jetzt { outline:3px solid var(--fz-akzent); }
+  .routine.fertig { background:color-mix(in srgb, #43a047 12%, var(--fz-karte)); outline-color:#43a047; }
+  .rkopf { display:flex; align-items:center; gap:12px; }
+  .remoji { font-size:2.2em; }
+  .rtitel { flex:1; display:flex; flex-direction:column; }
+  .rtitel b { font-size:1.3em; }
+  .rstand { font-size:1.4em; font-weight:800; }
+  .balken-fort { height:10px; border-radius:5px; background:var(--fz-grund); margin:10px 0 12px; overflow:hidden; }
+  .balken-fort span { display:block; height:100%; background:linear-gradient(90deg, #ffb86c, #7ee081); border-radius:5px; transition:width .4s; }
+  .kacheln { display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); gap:12px; }
+  .kachel { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; min-height:150px;
+    border-radius:18px; background:var(--fz-grund); border:3px solid transparent; padding:10px; transition:transform .15s; }
+  .kachel:active { transform:scale(.95); }
+  .kemoji { font-size:3.4em; line-height:1; }
+  .ktext { font-weight:800; font-size:1.05em; text-align:center; }
+  .kpunkte { font-size:.85em; color:var(--fz-grau); font-weight:700; }
+  .kachel.erledigt { background:color-mix(in srgb, #43a047 18%, var(--fz-karte)); border-color:#43a047; }
+  .kachel.erledigt .kemoji { opacity:.55; }
+  .kachel.erledigt .kpunkte { color:#2e7d32; font-size:1.4em; }
+  .schatz { display:flex; align-items:center; gap:16px; padding:16px 20px; border-radius:18px; background:var(--fz-karte);
+    border-left:8px solid var(--ring); }
+  .schatz-emoji { font-size:2.6em; }
+  .schatz div { display:flex; flex-direction:column; }
+  .schatz b { font-size:2.2em; font-weight:800; }
+  .belohnung { display:flex; flex-direction:column; align-items:flex-start; gap:4px; padding:14px; border-radius:16px;
+    background:var(--fz-karte); text-align:left; min-height:130px; opacity:.6; border:3px solid transparent; }
+  .belohnung.leistbar { opacity:1; border-color:#ffb300; box-shadow:0 4px 14px rgba(255,179,0,.25); }
+  .belohnung .eemoji { font-size:2.3em; }
+  .preis { font-weight:800; color:#e65100; }
+  .tv { font-size:.8em; background:var(--fz-grund); border-radius:999px; padding:2px 8px; }
+  .vtitel { margin:4px 0 0; }
+  .verlauf { background:var(--fz-karte); border-radius:14px; padding:4px 14px; }
+  .vzeile { display:flex; gap:12px; align-items:center; padding:8px 0; border-top:1px solid var(--fz-linie); }
+  .vzeile:first-child { border-top:0; }
+  .vzeile span:nth-child(2) { flex:1; }
+  .plus { color:#2e7d32; } .minus { color:#c62828; }
+  .karte.pin { max-width:340px; }
+  .pinpunkte { text-align:center; font-size:2em; letter-spacing:.3em; min-height:1.6em; margin:6px 0; }
+  .pinfehler { color:var(--error-color, #db4437); text-align:center; font-weight:700; }
+  .pinfeld { display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; }
+  .pinfeld button { height:60px; border-radius:16px; background:var(--fz-grund); font-size:1.5em; font-weight:700; }
+  .pinfeld button.ok { background:var(--primary-color, #3f7fe0); color:#fff; font-size:1.1em; }
+  .einloesen-gross { font-size:4em; text-align:center; }
+  .korr { display:flex; align-items:center; justify-content:center; gap:24px; margin:12px 0; }
+  .korr b { font-size:2em; min-width:110px; text-align:center; }
 
   /* Dialoge */
   .overlay { position:fixed; inset:0; background:rgba(20,24,35,.45); display:flex; align-items:center;

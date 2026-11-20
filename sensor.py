@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from homeassistant.components.sensor import SensorEntity
+from homeassistant.components.sensor import SensorEntity, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import Event, EventStateChangedData, HomeAssistant, callback
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.event import async_track_state_change_event
 
@@ -21,7 +22,9 @@ from .const import (
     CONF_PET_NAME,
     CONF_PETS,
     CONF_SHOPPING_LIST,
+    DOMAIN,
     MODULES,
+    SIGNAL_PUNKTE,
     rgb_to_hex,
     stichwoerter,
 )
@@ -33,7 +36,44 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
-    async_add_entities([PersonenSensor(entry)])
+    entitaeten: list[SensorEntity] = [PersonenSensor(entry)]
+    if "punkte" in entry.options.get(CONF_MODULES, []):
+        entitaeten += [PunkteSensor(entry, eid) for eid in entry.options.get(CONF_PERSONS, {})]
+    async_add_entities(entitaeten)
+
+
+class PunkteSensor(SensorEntity):
+    """Punktestand einer Person (Modul „Punkte & Belohnungen“)."""
+
+    _attr_has_entity_name = True
+    _attr_icon = "mdi:star-circle"
+    _attr_native_unit_of_measurement = "⭐"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, entry: ConfigEntry, person: str) -> None:
+        self._entry = entry
+        self._person = person
+        self._attr_unique_id = f"{entry.entry_id}_punkte_{person}"
+        self._attr_device_info = geraet(entry)
+
+    @property
+    def name(self) -> str:
+        state = self.hass.states.get(self._person) if self.hass else None
+        return f"Punkte {state.name if state else self._person}"
+
+    async def async_added_to_hass(self) -> None:
+        self.async_on_remove(
+            async_dispatcher_connect(self.hass, SIGNAL_PUNKTE, self.async_write_ha_state)
+        )
+
+    @property
+    def native_value(self) -> int:
+        kinder = self.hass.data.get(f"{DOMAIN}_kinder")
+        return int(kinder.d["punkte"].get(self._person, 0)) if kinder else 0
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return {"person": self._person}
 
 
 class PersonenSensor(SensorEntity):

@@ -23,6 +23,7 @@
           "haustiere": "🐕 Pets",
           "kalender": "📅 Calendars & push",
           "essensplan": "🍝 Meal plan",
+          "punkte": "⭐ Points & rewards",
           "kindersicherung": "🔒 Child lock (parent PIN)"
         }
       },
@@ -97,6 +98,16 @@
         "data_description": {
           "einkaufsliste": "Ingredients are added here with one tap (a to-do list).",
           "essens_hinweise": "E.g. “child aged 3, not spicy, little meat, max. 30 minutes on weekdays”."
+        }
+      },
+      "punkte": {
+        "title": "Points & rewards",
+        "description": "Routines and rewards are managed in the “Familie” panel under ✅ Aufgaben and 💎 Schätze.",
+        "data": {
+          "sandi_zaehler": "Counter for TV rewards"
+        },
+        "data_description": {
+          "sandi_zaehler": "Rewards with “Sandi stars” add stars to this counter when redeemed."
         }
       },
       "kindersicherung": {

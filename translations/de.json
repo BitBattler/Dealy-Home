@@ -23,6 +23,7 @@
           "haustiere": "🐕 Haustiere",
           "kalender": "📅 Kalender & Push",
           "essensplan": "🍝 Essensplan",
+          "punkte": "⭐ Punkte & Belohnungen",
           "kindersicherung": "🔒 Kindersicherung (Eltern-PIN)"
         }
       },
@@ -97,6 +98,16 @@
         "data_description": {
           "einkaufsliste": "Hierhin kommen die Zutaten per Knopfdruck (eine To-do-Liste, z. B. „Einkaufsliste“).",
           "essens_hinweise": "Z. B. „Kind 3 Jahre, nicht scharf, wenig Fleisch, unter der Woche max. 30 Minuten, keine Pilze“."
+        }
+      },
+      "punkte": {
+        "title": "Punkte & Belohnungen",
+        "description": "Routinen und Belohnungen verwaltest du im Panel „Familie“ unter ✅ Aufgaben und 💎 Schätze.",
+        "data": {
+          "sandi_zaehler": "Zähler für TV-Belohnungen (Sandi-Sterne)"
+        },
+        "data_description": {
+          "sandi_zaehler": "Belohnungen mit „Sandi-Sternen“ schreiben beim Einlösen hier Sterne gut – Sandi macht daraus Fernsehminuten."
         }
       },
       "kindersicherung": {

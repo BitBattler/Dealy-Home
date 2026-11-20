@@ -41,6 +41,7 @@ from .const import (
     CONF_KEYWORDS,
     CONF_MEALS,
     CONF_MODULES,
+    CONF_SANDI_COUNTER,
     CONF_SHOPPING_LIST,
     DEFAULT_MEALS,
     MAHLZEIT_NAMEN,
@@ -101,7 +102,25 @@ class FamilienzentraleOptionsFlow(OptionsFlow):
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         return self.async_show_menu(
             step_id="init",
-            menu_options=["module", "personen", "haustiere", "kalender", "essensplan", "kindersicherung"],
+            menu_options=["module", "personen", "haustiere", "kalender", "essensplan", "punkte", "kindersicherung"],
+        )
+
+    # --- Punkte & Belohnungen ----------------------------------------------
+    async def async_step_punkte(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        if user_input is not None:
+            return self._speichern(**{CONF_SANDI_COUNTER: user_input.get(CONF_SANDI_COUNTER) or ""})
+        aktuell = self.config_entry.options.get(CONF_SANDI_COUNTER)
+        if aktuell is None and self.hass.states.get("counter.sandi_sterne"):
+            aktuell = "counter.sandi_sterne"
+        return self.async_show_form(
+            step_id="punkte",
+            data_schema=vol.Schema(
+                {
+                    vol.Optional(
+                        CONF_SANDI_COUNTER, description={"suggested_value": aktuell} if aktuell else None
+                    ): EntitySelector(EntitySelectorConfig(domain="counter"))
+                }
+            ),
         )
 
     # --- Essensplan ---------------------------------------------------------
