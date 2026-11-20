@@ -13,14 +13,17 @@ const STD = 48;            // Pixel pro Stunde im Zeitraster
 const MAX_CHIPS = 4;       // Monatsansicht
 
 // Leiste links: Modul-Schlüssel -> Eintrag (nur aktive Module erscheinen)
+// key = Modul, seite = Seite im Panel (null = kommt noch)
 const LEISTE = [
-  { key: "kalender", icon: "mdi:calendar-month", label: "Kalender" },
-  { key: "stundenplan", icon: "mdi:school", label: "Schule" },
-  { key: "routinen", icon: "mdi:check-decagram", label: "Aufgaben" },
-  { key: "punkte", icon: "mdi:treasure-chest", label: "Schätze" },
-  { key: "essensplan", icon: "mdi:food-apple", label: "Essen" },
-  { key: "listen", icon: "mdi:clipboard-list", label: "Listen" },
+  { key: "kalender", seite: "kalender", icon: "mdi:calendar-month", label: "Kalender" },
+  { key: "stundenplan", seite: null, icon: "mdi:school", label: "Schule" },
+  { key: "routinen", seite: "aufgaben", icon: "mdi:check-decagram", label: "Aufgaben" },
+  { key: "punkte", seite: "glaeser", icon: "mdi:star-shooting", label: "Sterne" },
+  { key: "punkte", seite: "schaetze", icon: "mdi:treasure-chest", label: "Schätze" },
+  { key: "essensplan", seite: "essen", icon: "mdi:food-apple", label: "Essen" },
+  { key: "listen", seite: null, icon: "mdi:clipboard-list", label: "Listen" },
 ];
+const KINDER_SEITEN = ["aufgaben", "glaeser", "schaetze"];
 
 // Modul-Schlüssel -> Seite im Panel
 const SEITEN = { kalender: "kalender", essensplan: "essen", routinen: "aufgaben", punkte: "schaetze" };
@@ -159,7 +162,7 @@ class FamilienzentralePanel extends HTMLElement {
   async _laden() {
     if (!this._hass) return;
     if (this._seite === "essen") { await this._ladeEssen(); return; }
-    if (this._seite === "aufgaben" || this._seite === "schaetze") { await this._ladeKinder(); return; }
+    if (KINDER_SEITEN.includes(this._seite)) { await this._ladeKinder(); return; }
     const nr = ++this._ladeNr;
     const kal = this._kalender();
     const { start, ende } = this._bereich();
@@ -361,10 +364,10 @@ class FamilienzentralePanel extends HTMLElement {
     if (a === "aktualisieren") { this._laden(); this._zeigeToast("Aktualisiert"); return; }
     if (a === "einstellungen") { this._navigiere("/config/integrations/integration/familienzentrale"); return; }
     if (a === "bearbeiten") { this._navigiere("/calendar"); return; }
-    if (a.startsWith("modul-")) {
-      const k = a.slice(6);
-      if (SEITEN[k]) {
-        this._seite = SEITEN[k];
+    if (a.startsWith("seite-")) {
+      const s = a.slice(6);
+      if (s !== "bald") {
+        this._seite = s;
         this._bearbeiten = false;
         this._menuOffen = false;
         this._scrollNachJetzt = true;
@@ -495,7 +498,7 @@ class FamilienzentralePanel extends HTMLElement {
       zutaten: r.zutaten.split("\n").map((z) => z.trim()).filter(Boolean),
       zubereitung: r.zubereitung, link: r.link.trim(),
     };
-    if (r.id) daten.id = r.id;
+    if (r.id) daten.rezept_id = r.id;
     this._rezept = null;
     this._zeichneDialog();
     await this._ws(daten, "Rezept gespeichert ✔");
@@ -507,7 +510,7 @@ class FamilienzentralePanel extends HTMLElement {
     if (!r.loeschenBestaetigen) { this._rezeptMerken(); r.loeschenBestaetigen = true; this._zeichneDialog(); return; }
     this._rezept = null;
     this._zeichneDialog();
-    await this._ws({ type: "familienzentrale/essen/rezept_loeschen", id: r.id }, "Rezept gelöscht");
+    await this._ws({ type: "familienzentrale/essen/rezept_loeschen", rezept_id: r.id }, "Rezept gelöscht");
   }
 
   async _einkaufen() {
@@ -588,6 +591,33 @@ class FamilienzentralePanel extends HTMLElement {
 
   // ======================= Aufgaben & Schätze =======================
   _kinderListe() { return this._personen().filter((p) => p.entity_id.startsWith("person.")); }
+
+  // Sterne als Bilder statt Zahlen (für Kinder, die noch nicht zählen)
+  _sternPlaetze(haben, kosten) {
+    return Array.from({ length: kosten }, (_, i) =>
+      `<span class="splatz ${i < haben ? "voll" : ""}">${i < haben ? "⭐" : "☆"}</span>`).join("");
+  }
+
+  // Großer Stern / Konfetti als Rückmeldung beim Abhaken
+  _feiern(zeichen, gross = false) {
+    const ebene = this._root.getElementById("toast");
+    const el = document.createElement("div");
+    el.className = `feier ${gross ? "gross" : ""}`;
+    el.textContent = zeichen;
+    ebene.appendChild(el);
+    if (gross) {
+      for (let i = 0; i < 14; i++) {
+        const f = document.createElement("div");
+        f.className = "funke";
+        f.textContent = ["⭐", "🌟", "✨", "🎉"][i % 4];
+        f.style.setProperty("--x", `${Math.cos(i / 14 * 2 * Math.PI) * 38}vw`);
+        f.style.setProperty("--y", `${Math.sin(i / 14 * 2 * Math.PI) * 32}vh`);
+        ebene.appendChild(f);
+        setTimeout(() => f.remove(), 1600);
+      }
+    }
+    setTimeout(() => el.remove(), gross ? 1800 : 1100);
+  }
   _kindName(eid) { return this._personen().find((p) => p.entity_id === eid)?.name || eid; }
   _punkteVon(eid) { return Number(this._kinder?.punkte?.[eid] || 0); }
 
@@ -644,7 +674,9 @@ class FamilienzentralePanel extends HTMLElement {
   }
 
   _klickKinder(a) {
-    if (this._seite !== "aufgaben" && this._seite !== "schaetze") return false;
+    if (!KINDER_SEITEN.includes(this._seite)) return false;
+    // Tipp auf ein Sternenglas -> Belohnungsladen dieser Person
+    if (a.startsWith("glas-")) { this._kind = a.slice(5); this._seite = "schaetze"; this._zeichnen(); return true; }
     const d = this._kdlg;
     // PIN-Tastatur
     if (d?.typ === "pin") {
@@ -688,7 +720,7 @@ class FamilienzentralePanel extends HTMLElement {
       this._mitPin(async (pin) => {
         this._kdlg = null;
         this._zeichneDialog();
-        await this._kws({ type: "familienzentrale/kinder/routine_loeschen", pin, id: d.id }, "Routine gelöscht");
+        await this._kws({ type: "familienzentrale/kinder/routine_loeschen", pin, routine_id: d.id }, "Routine gelöscht");
       });
       return true;
     }
@@ -712,7 +744,7 @@ class FamilienzentralePanel extends HTMLElement {
       this._mitPin(async (pin) => {
         this._kdlg = null;
         this._zeichneDialog();
-        await this._kws({ type: "familienzentrale/kinder/belohnung_loeschen", pin, id: d.id }, "Belohnung gelöscht");
+        await this._kws({ type: "familienzentrale/kinder/belohnung_loeschen", pin, belohnung_id: d.id }, "Belohnung gelöscht");
       });
       return true;
     }
@@ -759,10 +791,8 @@ class FamilienzentralePanel extends HTMLElement {
     if (erledigt) this._kinder.erledigt[aid] = true; else delete this._kinder.erledigt[aid];
     this._zeichneInhalt();
     const alle = r.aufgaben.every((x) => this._kinder.erledigt[x.id]);
-    const ok = await this._kws({ type: "familienzentrale/kinder/abhaken", routine: rid, aufgabe: aid, erledigt });
-    if (ok && erledigt) {
-      this._zeigeToast(alle ? `🎉 ${r.name} geschafft! Super!` : `${aufgabe.emoji || "✅"} +${aufgabe.punkte} ⭐`);
-    }
+    if (erledigt) this._feiern(alle ? "🎉" : "⭐", alle);
+    await this._kws({ type: "familienzentrale/kinder/abhaken", routine: rid, aufgabe: aid, erledigt });
   }
 
   _formMerken() {
@@ -791,7 +821,7 @@ class FamilienzentralePanel extends HTMLElement {
       this._kdlg = null;
       this._zeichneDialog();
       await this._kws({
-        type: "familienzentrale/kinder/routine_speichern", pin, ...(d.id ? { id: d.id } : {}),
+        type: "familienzentrale/kinder/routine_speichern", pin, ...(d.id ? { routine_id: d.id } : {}),
         name: d.name.trim(), emoji: d.emoji.trim(), zeit: d.zeit, person: d.person, aufgaben,
       }, "Routine gespeichert ✔");
     });
@@ -805,7 +835,7 @@ class FamilienzentralePanel extends HTMLElement {
       this._kdlg = null;
       this._zeichneDialog();
       await this._kws({
-        type: "familienzentrale/kinder/belohnung_speichern", pin, ...(d.id ? { id: d.id } : {}),
+        type: "familienzentrale/kinder/belohnung_speichern", pin, ...(d.id ? { belohnung_id: d.id } : {}),
         name: d.name.trim(), emoji: d.emoji.trim(), kosten: Math.max(0, Math.round(d.kosten)),
         sandi_sterne: Math.max(0, Math.round(d.sandi_sterne)),
       }, "Belohnung gespeichert ✔");
@@ -819,15 +849,16 @@ class FamilienzentralePanel extends HTMLElement {
     this._root.getElementById("kopf").innerHTML = `
       <div class="kopf-links">
         <div class="titelzeile">${this._narrow ? '<span id="menuplatz"></span>' : ""}
-          <h1>${hhmm(new Date())} <span class="strich">|</span> ${schaetze ? "💎 Schätze" : "✅ Aufgaben"}</h1></div>
+          <h1>${hhmm(new Date())} <span class="strich">|</span> ${
+            { aufgaben: "✅ Aufgaben", glaeser: "⭐ Sterne", schaetze: "💎 Schätze" }[this._seite]}</h1></div>
         <div class="tabs"><span class="grau">${esc(titel)} · ${WT_LANG[wt(new Date())]}, ${ddmm(new Date())}</span></div>
       </div>
       <div class="kopf-rechts">
-        ${kinder.map((p) => `
+        ${this._seite === "glaeser" ? "" : kinder.map((p) => `
           <button class="kindwahl ${p.entity_id === this._kind ? "aktiv" : ""}" data-a="kind-${p.entity_id}" style="--ring:${p.farbe}">
             <span class="avatar klein" style="--ring:${p.farbe}">${p.bild ? `<img src="${esc(p.bild)}" alt="">`
               : `<span style="background:${pastell(p.farbe, 45)}">${esc(initial(p.name))}</span>`}</span>
-            <span class="kname">${esc(p.name)}<b>⭐ ${this._punkteVon(p.entity_id)}</b></span>
+            <span class="kname">${esc(p.name)}${this._bearbeiten ? `<b>⭐ ${this._punkteVon(p.entity_id)}</b>` : ""}</span>
           </button>`).join("")}
         ${schaetze ? `<button class="rund" data-a="korrektur" title="Bonus / Abzug"><ha-icon icon="mdi:plus-minus-variant"></ha-icon></button>` : ""}
         <button class="rund ${this._bearbeiten ? "an" : ""}" data-a="${this._bearbeiten ? "bearbeiten-aus" : "bearbeiten-an"}"
@@ -855,11 +886,12 @@ class FamilienzentralePanel extends HTMLElement {
     for (const [rid, r] of routinen) {
       const fertig = r.aufgaben.filter((x) => k.erledigt[x.id]).length;
       const prozent = r.aufgaben.length ? Math.round(fertig / r.aufgaben.length * 100) : 0;
-      html += `<section class="routine ${r.zeit === jetzt ? "jetzt" : ""} ${fertig === r.aufgaben.length ? "fertig" : ""}">
+      html += `<section class="routine ${r.zeit === jetzt ? "aktuell" : ""} ${fertig === r.aufgaben.length ? "fertig" : ""}">
         <div class="rkopf">
           <span class="remoji">${esc(r.emoji || "📋")}</span>
           <div class="rtitel"><b>${esc(r.name)}</b><span class="grau">${ZEIT_NAME[r.zeit]}</span></div>
-          <span class="rstand">${fertig === r.aufgaben.length ? "🎉" : `${fertig}/${r.aufgaben.length}`}</span>
+          <span class="rstand">${fertig === r.aufgaben.length ? "🎉"
+            : r.aufgaben.map((x) => (k.erledigt[x.id] ? "✅" : "⚪")).join("")}</span>
           ${this._bearbeiten ? `<button class="rund" data-a="routine-edit-${rid}"><ha-icon icon="mdi:pencil"></ha-icon></button>` : ""}
         </div>
         <div class="balken-fort"><span style="width:${prozent}%"></span></div>
@@ -867,7 +899,7 @@ class FamilienzentralePanel extends HTMLElement {
           <button class="kachel ${k.erledigt[x.id] ? "erledigt" : ""}" data-a="aufgabe-${rid}|${x.id}">
             <span class="kemoji">${esc(x.emoji || "⭐")}</span>
             <span class="ktext">${esc(x.name)}</span>
-            <span class="kpunkte">${k.erledigt[x.id] ? "✓" : `+${x.punkte} ⭐`}</span>
+            <span class="kpunkte">${k.erledigt[x.id] ? "✓" : "⭐".repeat(Math.min(x.punkte, 5))}</span>
           </button>`).join("")}</div>
       </section>`;
     }
@@ -884,20 +916,34 @@ class FamilienzentralePanel extends HTMLElement {
     const p = this._punkteVon(this._kind);
     const person = this._personen().find((x) => x.entity_id === this._kind);
     const belohnungen = Object.entries(k.belohnungen).sort((a, b) => a[1].kosten - b[1].kosten);
+    // Sternenglas: jeder Punkt ein Stern (ab 60 Sternen wird nur noch das Glas voller)
+    const sichtbar = Math.min(p, 60);
     let html = `<div class="kinder">
-      <div class="schatz" style="--ring:${person?.farbe || NEUTRAL}">
-        <span class="schatz-emoji">💎</span>
-        <div><span class="grau">${esc(person?.name || "")} hat</span><b>${p} ⭐</b></div>
+      <div class="glas-zeile" style="--ring:${person?.farbe || NEUTRAL}">
+        <div class="glas">
+          <div class="deckel"></div>
+          <div class="glas-innen">${"<span>⭐</span>".repeat(sichtbar) || `<span class="leer-glas">Noch leer –<br>sammle Sterne!</span>`}</div>
+        </div>
+        <div class="glas-text"><b>${esc(person?.name || "")}s Sternenglas</b>
+          ${this._bearbeiten ? `<span class="grau">${p} ⭐ (nur für Eltern sichtbar)</span>` : ""}</div>
       </div>
-      <div class="rgitter">`;
+      <div class="rgitter belohnungen">`;
     for (const [id, b] of belohnungen) {
       const leistbar = p >= b.kosten;
+      const anteil = b.kosten ? Math.min(1, p / b.kosten) : 1;
+      // Bis 12 Sterne: einzelne Sternplätze; darüber ein Weg zum Ziel
+      const fortschritt = b.kosten <= 12
+        ? `<div class="splaetze">${this._sternPlaetze(p, b.kosten)}</div>`
+        : `<div class="weg"><span class="weg-voll" style="width:${Math.round(anteil * 100)}%"></span>
+             <span class="weg-stern" style="left:${Math.round(anteil * 100)}%">⭐</span>
+             <span class="weg-ziel">${esc(b.emoji || "🎁")}</span></div>`;
       html += `<button class="belohnung ${leistbar ? "leistbar" : ""}" data-a="${this._bearbeiten ? `belohnung-edit-${id}` : `einloesen-${id}`}">
         <span class="eemoji">${esc(b.emoji || "🎁")}</span>
         <b>${esc(b.name)}</b>
-        <span class="preis">⭐ ${b.kosten}</span>
-        ${b.sandi_sterne ? `<span class="tv">📺 +${b.sandi_sterne} Sandi-Stern${b.sandi_sterne > 1 ? "e" : ""}</span>` : ""}
-        ${!leistbar && !this._bearbeiten ? `<span class="grau">noch ${b.kosten - p} ⭐</span>` : ""}
+        ${fortschritt}
+        ${leistbar ? `<span class="jetzt-da">🎉 Geschafft!</span>` : ""}
+        ${b.sandi_sterne ? `<span class="tv">📺</span>` : ""}
+        ${this._bearbeiten ? `<span class="grau">${b.kosten} ⭐${b.sandi_sterne ? ` · +${b.sandi_sterne} Sandi-Stern${b.sandi_sterne > 1 ? "e" : ""}` : ""}</span>` : ""}
       </button>`;
     }
     if (this._bearbeiten || !belohnungen.length) {
@@ -905,14 +951,38 @@ class FamilienzentralePanel extends HTMLElement {
     }
     html += `</div>`;
     const verlauf = (k.verlauf || []).filter((v) => v.person === this._kind).slice(-20).reverse();
-    if (verlauf.length) {
+    if (verlauf.length && this._bearbeiten) {
       html += `<h3 class="vtitel">Verlauf</h3><div class="verlauf">${verlauf.map((v) => {
         const z = new Date(v.zeit);
         return `<div class="vzeile"><span class="grau">${ddmm(z)} ${hhmm(z)}</span><span>${esc(v.text)}</span>
-          <b class="${v.punkte > 0 ? "plus" : "minus"}">${v.punkte > 0 ? "+" : ""}${v.punkte} ⭐</b></div>`;
+          <b class="${v.punkte > 0 ? "pos" : "neg"}">${v.punkte > 0 ? "+" : ""}${v.punkte} ⭐</b></div>`;
       }).join("")}</div>`;
     }
     return html + `</div>`;
+  }
+
+  // Seite „Sterne“: ein Sternenglas für jede Person, Foto darüber
+  _glaeserInhalt() {
+    const k = this._kinder;
+    if (!k) return `<div class="hinweis">${this._fehler ? esc(this._fehler) : "Lädt …"}</div>`;
+    if (!k.punkte_aktiv) return `<div class="hinweis">Das Modul „Punkte & Belohnungen“ ist ausgeschaltet.</div>`;
+    const personen = this._kinderListe();
+    if (!personen.length) return `<div class="hinweis">Noch keine Personen eingerichtet (⚙️ → Personen).</div>`;
+    return `<div class="glaeser" style="--anzahl:${personen.length}">${personen.map((p) => {
+      const n = this._punkteVon(p.entity_id);
+      const sterne = Math.min(n, 80);
+      return `<button class="glaskarte" data-a="glas-${p.entity_id}" style="--ring:${p.farbe}">
+        <span class="gfoto">${p.bild ? `<img src="${esc(p.bild)}" alt="">`
+          : `<span style="background:${pastell(p.farbe, 45)}">${esc(initial(p.name))}</span>`}</span>
+        <b class="gname">${esc(p.name)}</b>
+        <span class="glas gross">
+          <span class="deckel"></span>
+          <span class="glas-innen">${"<span>⭐</span>".repeat(sterne)
+            || `<span class="leer-glas">Noch leer</span>`}</span>
+        </span>
+        ${this._bearbeiten ? `<span class="grau">${n} ⭐</span>` : ""}
+      </button>`;
+    }).join("")}</div>`;
   }
 
   _kinderDialog() {
@@ -980,6 +1050,7 @@ class FamilienzentralePanel extends HTMLElement {
       return huelle(`
         <div class="einloesen-gross">${esc(b.emoji || "🎁")}</div>
         <h2 style="text-align:center">${esc(b.name)}</h2>
+        ${b.kosten <= 30 ? `<div class="splaetze mitte">${this._sternPlaetze(p, b.kosten)}</div>` : ""}
         <p style="text-align:center">${esc(this._kindName(this._kind))} hat <b>${p} ⭐</b> · kostet <b>${b.kosten} ⭐</b>
           ${ok ? `<br>danach noch <b>${p - b.kosten} ⭐</b>` : `<br>Es fehlen noch <b>${b.kosten - p} ⭐</b> – weiter so!`}</p>
         ${b.sandi_sterne ? `<p class="grau" style="text-align:center">📺 Dazu gibt es ${b.sandi_sterne} Sandi-Stern${b.sandi_sterne > 1 ? "e" : ""} = Fernsehzeit.</p>` : ""}
@@ -992,7 +1063,7 @@ class FamilienzentralePanel extends HTMLElement {
       return huelle(`
         <h2>Bonus / Abzug für ${esc(this._kindName(this._kind))}</h2>
         <div class="korr"><button type="button" class="rund gross" data-a="korr-minus">−</button>
-          <b class="${d.delta > 0 ? "plus" : "minus"}">${d.delta > 0 ? "+" : ""}${d.delta} ⭐</b>
+          <b class="${d.delta > 0 ? "pos" : "neg"}">${d.delta > 0 ? "+" : ""}${d.delta} ⭐</b>
           <button type="button" class="rund gross" data-a="korr-plus">+</button></div>
         <label>Grund (freiwillig)<input id="ko-grund" value="${esc(d.grund)}" placeholder="z. B. beim Tischdecken geholfen"></label>
         <div class="knoepfe"><span class="platz"></span>
@@ -1053,7 +1124,7 @@ class FamilienzentralePanel extends HTMLElement {
   _wochenplan() {
     const m = this._essen.mahlzeiten || ["mittag", "abend"];
     const heute = tagKey(new Date());
-    let html = `<div class="essen"><div class="eplan" style="grid-template-columns:110px repeat(${m.length}, minmax(0,1fr))">
+    let html = `<div class="essen"><div class="eplan" style="grid-template-columns:110px repeat(${m.length}, minmax(0,1fr)); --mz:${m.length}">
       <div></div>${m.map((x) => `<div class="ekopf">${this._mahlzeitName(x)}</div>`).join("")}`;
     for (let i = 0; i < 7; i++) {
       const d = plusTage(this._essenRef, i);
@@ -1321,7 +1392,7 @@ class FamilienzentralePanel extends HTMLElement {
     leiste.innerHTML = `
       <div class="logo" data-a="einstellungen" title="Familienzentrale"><ha-icon icon="mdi:home-heart"></ha-icon></div>
       ${eintraege.map((x) => `
-        <button class="rail ${SEITEN[x.key] === this._seite ? "aktiv" : ""}" data-a="modul-${x.key}">
+        <button class="rail ${x.seite && x.seite === this._seite ? "aktiv" : ""}" data-a="seite-${x.seite || "bald"}">
           <ha-icon icon="${x.icon}"></ha-icon><span>${x.label}</span>
         </button>`).join("")}
       <div class="platz"></div>
@@ -1332,7 +1403,7 @@ class FamilienzentralePanel extends HTMLElement {
   _zeichneKopf() {
     if (!this._root) return;
     if (this._seite === "essen") { this._essenKopf(); return; }
-    if (this._seite === "aufgaben" || this._seite === "schaetze") { this._kinderKopf(); return; }
+    if (KINDER_SEITEN.includes(this._seite)) { this._kinderKopf(); return; }
     const kopf = this._root.getElementById("kopf");
     const m = this._modus();
     const titel = this._panel?.config?.titel || "Familie";
@@ -1400,6 +1471,7 @@ class FamilienzentralePanel extends HTMLElement {
     if (this._seite === "essen") { inhalt.innerHTML = this._essenInhalt(); return; }
     if (this._seite === "aufgaben") { inhalt.innerHTML = this._aufgabenInhalt(); return; }
     if (this._seite === "schaetze") { inhalt.innerHTML = this._schaetzeInhalt(); return; }
+    if (this._seite === "glaeser") { inhalt.innerHTML = this._glaeserInhalt(); return; }
     if (!this._kalender().length) {
       inhalt.innerHTML = `<div class="hinweis">Noch kein Kalender gewählt.<br>
         ⚙️ → Konfigurieren → „📅 Kalender &amp; Push“.</div>`;
@@ -1848,7 +1920,7 @@ FamilienzentralePanel.css = `
   .rund.gross { width:56px; height:56px; border-radius:28px; font-size:1.6em; }
   .kinder { flex:1; overflow:auto; padding:14px 18px; display:flex; flex-direction:column; gap:14px; }
   .routine { background:var(--fz-karte); border-radius:18px; padding:14px; box-shadow:0 1px 3px rgba(0,0,0,.06); }
-  .routine.jetzt { outline:3px solid var(--fz-akzent); }
+  .routine.aktuell { outline:3px solid var(--fz-akzent); }
   .routine.fertig { background:color-mix(in srgb, #43a047 12%, var(--fz-karte)); outline-color:#43a047; }
   .rkopf { display:flex; align-items:center; gap:12px; }
   .remoji { font-size:2.2em; }
@@ -1883,7 +1955,71 @@ FamilienzentralePanel.css = `
   .vzeile { display:flex; gap:12px; align-items:center; padding:8px 0; border-top:1px solid var(--fz-linie); }
   .vzeile:first-child { border-top:0; }
   .vzeile span:nth-child(2) { flex:1; }
-  .plus { color:#2e7d32; } .minus { color:#c62828; }
+  .pos { color:#2e7d32; } .neg { color:#c62828; }
+  /* Sternenglas & Sternplätze (Bilder statt Zahlen) */
+  .glas-zeile { display:flex; align-items:center; gap:24px; background:var(--fz-karte); border-radius:22px; padding:16px 22px;
+    border-left:8px solid var(--ring); }
+  .glas { position:relative; width:190px; flex:none; }
+  .deckel { height:16px; margin:0 22px; border-radius:6px 6px 2px 2px; background:linear-gradient(#c8a46a, #a07a40); }
+  .glas-innen { min-height:170px; border:5px solid color-mix(in srgb, #90caf9 70%, white); border-top-width:3px;
+    border-radius:18px 18px 40px 40px; background:color-mix(in srgb, #e3f2fd 55%, var(--fz-karte));
+    display:flex; flex-wrap:wrap-reverse; align-content:flex-start; justify-content:center; gap:1px; padding:8px; }
+  .glas-innen span { font-size:1.35em; line-height:1.1; animation:fz-plopp .35s ease-out; }
+  .glas-innen .leer-glas { font-size:.9em; color:var(--fz-grau); text-align:center; align-self:center; animation:none; }
+  .glas-text b { font-size:1.5em; display:block; }
+  .belohnungen .belohnung { min-height:170px; align-items:center; text-align:center; }
+  .belohnung .eemoji { font-size:3em; }
+  .splaetze { display:flex; flex-wrap:wrap; justify-content:center; gap:2px; font-size:1.3em; }
+  .splaetze.mitte { margin:6px 0 10px; font-size:1.6em; }
+  .splatz { color:#bdbdbd; }
+  .splatz.voll { animation:fz-plopp .35s ease-out; }
+  .weg { position:relative; width:100%; height:14px; border-radius:7px; background:var(--fz-grund); margin:14px 0 6px; }
+  .weg-voll { position:absolute; left:0; top:0; bottom:0; border-radius:7px; background:linear-gradient(90deg, #ffe082, #ffb300); }
+  .weg-stern { position:absolute; top:50%; transform:translate(-50%, -50%); font-size:1.5em; }
+  .weg-ziel { position:absolute; right:-8px; top:50%; transform:translateY(-50%); font-size:1.6em; }
+  .jetzt-da { font-weight:800; color:#e65100; font-size:1.1em; }
+  .belohnung.leistbar { animation:fz-huepf 1.6s ease-in-out infinite; }
+  @keyframes fz-huepf { 0%, 100% { transform:translateY(0); } 50% { transform:translateY(-6px); } }
+  @keyframes fz-plopp { from { transform:scale(0); } 70% { transform:scale(1.3); } to { transform:scale(1); } }
+  .feier { position:fixed; left:50%; top:45%; z-index:30; font-size:7em; pointer-events:none;
+    animation:fz-flug 1.1s ease-out forwards; }
+  .feier.gross { font-size:10em; animation:fz-flug 1.8s ease-out forwards; }
+  @keyframes fz-flug {
+    0% { transform:translate(-50%, -50%) scale(.2) rotate(-30deg); opacity:0; }
+    25% { transform:translate(-50%, -50%) scale(1.15) rotate(10deg); opacity:1; }
+    70% { transform:translate(-50%, -60%) scale(1) rotate(0); opacity:1; }
+    100% { transform:translate(-50%, -160%) scale(.4); opacity:0; }
+  }
+  .funke { position:fixed; left:50%; top:45%; z-index:29; font-size:2.6em; pointer-events:none;
+    animation:fz-funke 1.5s ease-out forwards; }
+  @keyframes fz-funke {
+    from { transform:translate(-50%, -50%) scale(.3); opacity:1; }
+    to { transform:translate(calc(-50% + var(--x)), calc(-50% + var(--y))) scale(1.2) rotate(180deg); opacity:0; }
+  }
+  /* Seite „Sterne“ */
+  /* Gläser füllen den ganzen Inhaltsbereich: eine Spalte pro Person, volle Höhe */
+  .glaeser { flex:1; min-height:0; padding:16px; display:grid; gap:16px;
+    grid-template-columns:repeat(var(--anzahl, 3), minmax(0, 1fr)); grid-template-rows:minmax(0, 1fr); }
+  .glaskarte { display:flex; flex-direction:column; align-items:center; gap:10px; padding:16px 14px; min-height:0;
+    border-radius:24px; background:var(--fz-karte); border-top:8px solid var(--ring); box-shadow:0 2px 8px rgba(0,0,0,.06); }
+  .glaskarte:active { transform:scale(.99); }
+  .gfoto { flex:none; width:clamp(72px, 12cqi, 150px); aspect-ratio:1; border-radius:50%; padding:5px;
+    border:5px solid var(--ring); background:var(--fz-karte); }
+  .gfoto img, .gfoto span { width:100%; height:100%; border-radius:50%; object-fit:cover; display:flex;
+    align-items:center; justify-content:center; font-size:2.6em; font-weight:800; }
+  .gname { flex:none; font-size:clamp(1.1em, 2.4cqi, 1.9em); font-weight:800; }
+  .glas.gross { flex:1; min-height:0; width:100%; display:flex; flex-direction:column; }
+  .glas.gross .deckel { flex:none; display:block; height:clamp(14px, 2cqi, 26px); margin:0 12%; }
+  .glas.gross .glas-innen { flex:1; min-height:0; overflow:hidden; border-width:6px; border-radius:22px 22px 60px 60px;
+    padding:12px; gap:4px; align-content:flex-start; }
+  .glas.gross .glas-innen span { font-size:clamp(1.3em, 3.2cqi, 2.6em); }
+  .glas.gross .leer-glas { font-size:clamp(1em, 2cqi, 1.4em) !important; }
+  /* Schmal: zwei Spalten, dafür scrollen; jedes Glas bleibt groß */
+  @container fz (max-width: 760px) {
+    .glaeser { grid-template-columns:repeat(min(var(--anzahl, 3), 2), minmax(0, 1fr)); grid-template-rows:none;
+      grid-auto-rows:minmax(70vh, auto); overflow:auto; padding:10px; gap:10px; }
+    .glas.gross .glas-innen span { font-size:1.4em; }
+  }
   .karte.pin { max-width:340px; }
   .pinpunkte { text-align:center; font-size:2em; letter-spacing:.3em; min-height:1.6em; margin:6px 0; }
   .pinfehler { color:var(--error-color, #db4437); text-align:center; font-weight:700; }
@@ -1938,6 +2074,106 @@ FamilienzentralePanel.css = `
     .bbadges { display:none; }
     .zelle { min-height:70px; padding:3px; }
     .chip { font-size:.7em; }
+  }
+
+  /* =========================================================
+     Layout-Korrekturen gegen Überlappungen.
+     Container-Abfragen richten sich nach dem Platz des Panels selbst
+     (HA-Seitenleiste und Modul-Leiste sind schon abgezogen).
+     ========================================================= */
+  main { container-type:inline-size; container-name:fz; }
+  #leiste { overflow-y:auto; overflow-x:hidden; scrollbar-width:none; }
+  #leiste::-webkit-scrollbar { display:none; }
+  .rail span { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:62px; }
+
+  /* Kopf: darf umbrechen, rechte Seite rückt dann unter den Titel */
+  #kopf { flex-wrap:wrap; row-gap:8px; }
+  .kopf-links { min-width:min(100%, 300px); }
+  .kopf-rechts { flex-wrap:wrap; justify-content:flex-end; row-gap:6px; min-width:0; }
+  .tabs { row-gap:6px; }
+  .tab { white-space:nowrap; }
+  .knopf-gross { white-space:nowrap; }
+  .kindwahl { min-width:0; }
+  .kname { white-space:nowrap; }
+
+  /* Wochenraster: Kopf, Ganztags-Zeile und Raster reservieren gleich viel Platz
+     für die Scrollleiste, damit die Spalten exakt übereinander liegen */
+  .raster, .wkopf, .ganzzeile { scrollbar-gutter:stable; }
+  .wkopf, .ganzzeile { overflow-y:hidden; }
+  .ganzzeile { max-height:30%; overflow-y:auto; }
+  .tagkopf { min-width:0; gap:4px; }
+  .tagname { overflow:hidden; text-overflow:ellipsis; }
+  .plus { flex:none; }
+  .block { padding-right:6px; }
+  .block .btitel { overflow:hidden; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:3; word-break:break-word; }
+  .block.kurz .bbadges { display:none; }
+  .block:not(.kurz) { padding-bottom:22px; }   /* Platz für die Kürzel unten */
+  .ganzzelle { min-width:0; }
+  .balken { min-width:0; }
+
+  /* Monat */
+  .zelle { min-width:0; }
+  .chip { max-width:100%; }
+
+  /* Essen */
+  .eslot { min-width:0; }
+  .ename { min-width:0; overflow:hidden; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; word-break:break-word; }
+
+  /* Kinder */
+  .rkopf { flex-wrap:wrap; }
+  .rtitel { min-width:120px; }
+  .rstand { white-space:nowrap; font-size:1.1em; }
+  .belohnung { overflow:hidden; min-width:0; }
+  .belohnung b { word-break:break-word; }
+  .weg { width:calc(100% - 26px); margin-right:26px; }
+  .weg-ziel { right:-30px; }
+  .glas-zeile { flex-wrap:wrap; }
+
+  /* Dialoge: Felder umbrechen statt überlaufen */
+  .formular .reihe { flex-wrap:wrap; }
+  .formular .reihe > label { min-width:140px; }
+  .knoepfe { flex-wrap:wrap; row-gap:8px; }
+  .karte { overflow-x:hidden; }
+
+  /* Mittel (z. B. Tablet hochkant, Laptop mit Seitenleiste) */
+  @container fz (max-width: 1100px) {
+    h1 { font-size:1.45em; }
+    .knopf-gross span { display:none; }          /* nur Icons */
+    .knopf-gross { padding:9px 12px; }
+    .tagkopf { font-size:1em; padding:6px 4px 6px 8px; }
+    .plus { font-size:1.1em; padding:0 2px; }
+    .avatar { width:44px; height:44px; border-width:3px; padding:2px; }
+    .avatar.familie ha-icon, .zahnrad ha-icon { --mdc-icon-size:24px; }
+    .stunde { right:6px; font-size:.78em; }
+    .balken { font-size:.82em; padding:3px 6px; }
+    .balken .badge { display:none; }
+  }
+
+  /* Schmal */
+  @container fz (max-width: 760px) {
+    #kopf { padding:8px 10px; gap:8px; }
+    h1 { font-size:1.25em; }
+    .kopf-rechts { width:100%; justify-content:flex-start; overflow-x:auto; flex-wrap:nowrap; padding-bottom:2px; }
+    .kname b { display:none; }
+    .tab { padding:6px 10px; font-size:.9em; }
+    .trenner { display:none; }
+    .tagkopf { font-size:.85em; }
+    .tagkopf .plus { display:none; }
+    .block { padding:3px 4px; border-left-width:3px; }
+    .block .btitel { font-size:.75em; -webkit-line-clamp:4; }
+    .bzeit, .bbadges { display:none; }
+    .block:not(.kurz) { padding-bottom:3px; }
+    .eplan { grid-template-columns:72px repeat(var(--mz, 2), minmax(0, 1fr)) !important; gap:6px; }
+    .etag { padding:4px 6px; min-height:48px; font-size:.85em; }
+    .eslot { padding:6px 8px; gap:6px; min-height:48px; }
+    .eemoji { font-size:1.3em; }
+    .kacheln { grid-template-columns:repeat(auto-fill, minmax(110px, 1fr)); gap:8px; }
+    .kachel { min-height:120px; }
+    .kemoji { font-size:2.6em; }
+    .glas { width:150px; }
+    .glas-innen { min-height:130px; }
+    .rgitter { grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); }
+    .liste, .essen, .kinder { padding:10px; }
   }
 `;
 

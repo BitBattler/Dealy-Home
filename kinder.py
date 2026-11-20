@@ -172,7 +172,7 @@ AUFGABE = vol.Schema(
     {
         vol.Required("type"): "familienzentrale/kinder/routine_speichern",
         vol.Optional("pin"): str,
-        vol.Optional("id"): str,
+        vol.Optional("routine_id"): str,
         vol.Required("name"): vol.All(str, vol.Length(min=1, max=60)),
         vol.Optional("emoji", default=""): str,
         vol.Required("zeit"): vol.In(ZEITEN),
@@ -184,7 +184,7 @@ AUFGABE = vol.Schema(
 def ws_routine_speichern(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict) -> None:
     if not (k := _k(hass, connection, msg, pin=True)):
         return
-    rid = msg.get("id") or _neue_id()
+    rid = msg.get("routine_id") or _neue_id()
     alt = {a["name"].lower(): a["id"] for a in k.d["routinen"].get(rid, {}).get("aufgaben", [])}
     k.d["routinen"][rid] = {
         "name": msg["name"].strip(),
@@ -206,13 +206,13 @@ def ws_routine_speichern(hass: HomeAssistant, connection: websocket_api.ActiveCo
 
 
 @websocket_api.websocket_command(
-    {vol.Required("type"): "familienzentrale/kinder/routine_loeschen", vol.Optional("pin"): str, vol.Required("id"): str}
+    {vol.Required("type"): "familienzentrale/kinder/routine_loeschen", vol.Optional("pin"): str, vol.Required("routine_id"): str}
 )
 @callback
 def ws_routine_loeschen(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict) -> None:
     if not (k := _k(hass, connection, msg, pin=True)):
         return
-    k.d["routinen"].pop(msg["id"], None)
+    k.d["routinen"].pop(msg["routine_id"], None)
     k.speichern()
     connection.send_result(msg["id"], _antwort(k))
 
@@ -252,7 +252,7 @@ def ws_abhaken(hass: HomeAssistant, connection: websocket_api.ActiveConnection, 
     {
         vol.Required("type"): "familienzentrale/kinder/belohnung_speichern",
         vol.Optional("pin"): str,
-        vol.Optional("id"): str,
+        vol.Optional("belohnung_id"): str,
         vol.Required("name"): vol.All(str, vol.Length(min=1, max=60)),
         vol.Optional("emoji", default=""): str,
         vol.Required("kosten"): vol.All(int, vol.Range(min=0, max=10000)),
@@ -263,7 +263,7 @@ def ws_abhaken(hass: HomeAssistant, connection: websocket_api.ActiveConnection, 
 def ws_belohnung_speichern(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict) -> None:
     if not (k := _k(hass, connection, msg, pin=True)):
         return
-    bid = msg.get("id") or _neue_id()
+    bid = msg.get("belohnung_id") or _neue_id()
     k.d["belohnungen"][bid] = {
         "name": msg["name"].strip(),
         "emoji": msg["emoji"].strip()[:4],
@@ -275,13 +275,13 @@ def ws_belohnung_speichern(hass: HomeAssistant, connection: websocket_api.Active
 
 
 @websocket_api.websocket_command(
-    {vol.Required("type"): "familienzentrale/kinder/belohnung_loeschen", vol.Optional("pin"): str, vol.Required("id"): str}
+    {vol.Required("type"): "familienzentrale/kinder/belohnung_loeschen", vol.Optional("pin"): str, vol.Required("belohnung_id"): str}
 )
 @callback
 def ws_belohnung_loeschen(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict) -> None:
     if not (k := _k(hass, connection, msg, pin=True)):
         return
-    k.d["belohnungen"].pop(msg["id"], None)
+    k.d["belohnungen"].pop(msg["belohnung_id"], None)
     k.speichern()
     connection.send_result(msg["id"], _antwort(k))
 

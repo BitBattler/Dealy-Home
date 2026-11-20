@@ -210,7 +210,7 @@ def ws_laden(hass: HomeAssistant, connection: websocket_api.ActiveConnection, ms
 @websocket_api.websocket_command(
     {
         vol.Required("type"): "familienzentrale/essen/rezept_speichern",
-        vol.Optional("id"): str,
+        vol.Optional("rezept_id"): str,
         vol.Required("name"): vol.All(str, vol.Length(min=1, max=120)),
         vol.Optional("emoji", default=""): str,
         vol.Optional("portionen", default=4): vol.All(int, vol.Range(min=1, max=50)),
@@ -223,7 +223,7 @@ def ws_laden(hass: HomeAssistant, connection: websocket_api.ActiveConnection, ms
 def ws_rezept_speichern(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict) -> None:
     if not (ep := _ep(hass, connection, msg)):
         return
-    rid = msg.get("id") or uuid.uuid4().hex[:10]
+    rid = msg.get("rezept_id") or uuid.uuid4().hex[:10]
     ep.rezepte[rid] = {
         "name": msg["name"].strip(),
         "emoji": msg["emoji"].strip()[:4],
@@ -237,18 +237,18 @@ def ws_rezept_speichern(hass: HomeAssistant, connection: websocket_api.ActiveCon
 
 
 @websocket_api.websocket_command(
-    {vol.Required("type"): "familienzentrale/essen/rezept_loeschen", vol.Required("id"): str}
+    {vol.Required("type"): "familienzentrale/essen/rezept_loeschen", vol.Required("rezept_id"): str}
 )
 @callback
 def ws_rezept_loeschen(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict) -> None:
     if not (ep := _ep(hass, connection, msg)):
         return
-    rezept = ep.rezepte.pop(msg["id"], None)
+    rezept = ep.rezepte.pop(msg["rezept_id"], None)
     if rezept:
         # Geplante Mahlzeiten behalten – als freier Text mit dem Rezeptnamen
         for slots in ep.plan.values():
             for m, eintrag in slots.items():
-                if eintrag.get("rezept") == msg["id"]:
+                if eintrag.get("rezept") == msg["rezept_id"]:
                     slots[m] = {"text": f"{rezept.get('emoji', '')} {rezept['name']}".strip()}
         ep.speichern()
     connection.send_result(msg["id"], {})
