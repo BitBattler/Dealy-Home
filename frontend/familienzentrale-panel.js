@@ -57,13 +57,81 @@ const VORSCHLAEGE = [
   { emoji: "📖", name: "Geschichte lesen", zeit: ["abend"] },
   { emoji: "🛏️", name: "Ins Bett gehen", zeit: ["abend"] },
   { emoji: "🤗", name: "Gute-Nacht-Kuss", zeit: ["abend"] },
-];
-// Startaufgaben einer neuen Routine je Tageszeit
+].map((v) => ({ ...v, gruppe: "kind" })).concat([
+  // Mami & Papi
+  { emoji: "🛏️", name: "Bett machen", zeit: ["morgen"] },
+  { emoji: "🥪", name: "Znüni vorbereiten", zeit: ["morgen"] },
+  { emoji: "🎒", name: "Kita-Tasche packen", zeit: ["morgen", "abend"] },
+  { emoji: "🐕", name: "Gassi mit Ameo", zeit: ["morgen", "tag", "abend"] },
+  { emoji: "🍽️", name: "Geschirrspüler ausräumen", zeit: ["morgen", "abend"] },
+  { emoji: "💊", name: "Vitamine nehmen", zeit: ["morgen"] },
+  { emoji: "🧘", name: "Sport / Yoga", zeit: ["morgen", "tag"] },
+  { emoji: "🧺", name: "Wäsche waschen", zeit: ["tag"] },
+  { emoji: "👕", name: "Wäsche zusammenlegen", zeit: ["tag", "abend"] },
+  { emoji: "🧹", name: "Staubsaugen", zeit: ["tag"] },
+  { emoji: "🛒", name: "Einkaufen", zeit: ["tag"] },
+  { emoji: "🍳", name: "Kochen", zeit: ["tag", "abend"] },
+  { emoji: "🌱", name: "Pflanzen giessen", zeit: ["tag"] },
+  { emoji: "🗑️", name: "Müll rausbringen", zeit: ["tag", "abend"] },
+  { emoji: "🦴", name: "Ameo füttern", zeit: ["morgen", "abend"] },
+  { emoji: "📬", name: "Post & Rechnungen", zeit: ["tag"] },
+  { emoji: "💧", name: "2 Liter trinken", zeit: ["tag"] },
+  { emoji: "🚶", name: "Spazieren gehen", zeit: ["tag"] },
+  { emoji: "🧽", name: "Küche aufräumen", zeit: ["abend"] },
+  { emoji: "🛋️", name: "Wohnzimmer aufräumen", zeit: ["abend"] },
+  { emoji: "📖", name: "Niilo vorlesen", zeit: ["abend"] },
+  { emoji: "📅", name: "Morgen planen", zeit: ["abend"] },
+  { emoji: "📵", name: "Handy weglegen", zeit: ["abend"] },
+  { emoji: "💑", name: "Paarzeit", zeit: ["abend"] },
+].map((v) => ({ ...v, gruppe: "eltern" })));
+// Startaufgaben einer neuen Routine je Tageszeit und Gruppe
 const VORLAGE = {
-  morgen: ["Aufs Töpfchen", "Zähne putzen", "Anziehen", "Frühstücken"],
-  tag: ["Hände waschen", "Spielzeug aufräumen", "Wasser trinken"],
-  abend: ["Baden", "Pyjama anziehen", "Zähne putzen", "Geschichte lesen"],
+  kind: {
+    morgen: ["Aufs Töpfchen", "Zähne putzen", "Anziehen", "Frühstücken"],
+    tag: ["Hände waschen", "Spielzeug aufräumen", "Wasser trinken"],
+    abend: ["Baden", "Pyjama anziehen", "Zähne putzen", "Geschichte lesen"],
+  },
+  eltern: {
+    morgen: ["Bett machen", "Gassi mit Ameo", "Kita-Tasche packen", "Vitamine nehmen"],
+    tag: ["Wäsche waschen", "Einkaufen", "Kochen", "Pflanzen giessen"],
+    abend: ["Küche aufräumen", "Niilo vorlesen", "Morgen planen", "Handy weglegen"],
+  },
 };
+// Erwachsene am Namen erkennen (Mami, Papi …); alle anderen gelten als Kind
+const ERWACHSEN = /^(mami|mama|mum|mutti|mutter|papi|papa|daddy|dad|vati|vater)\b/i;
+
+// Vorlagen für den Belohnungsladen (sandi = Sandi-Sterne, 1 Stern = 5 Min. TV)
+const SCHATZ_VORLAGEN = [
+  { gruppe: "kind", emoji: "📺", name: "15 Min. Fernsehen", kosten: 5, sandi: 3 },
+  { gruppe: "kind", emoji: "📺", name: "30 Min. Fernsehen", kosten: 9, sandi: 6 },
+  { gruppe: "kind", emoji: "📖", name: "Extra-Geschichte", kosten: 3 },
+  { gruppe: "kind", emoji: "🎈", name: "Ballon", kosten: 4 },
+  { gruppe: "kind", emoji: "🛝", name: "Spielplatz", kosten: 6 },
+  { gruppe: "kind", emoji: "🌙", name: "10 Min. länger wach", kosten: 6 },
+  { gruppe: "kind", emoji: "🍪", name: "Guetzli backen", kosten: 8 },
+  { gruppe: "kind", emoji: "🍦", name: "Glace essen", kosten: 10 },
+  { gruppe: "kind", emoji: "🍕", name: "Znacht aussuchen", kosten: 12 },
+  { gruppe: "kind", emoji: "🚂", name: "Zugfahrt", kosten: 20 },
+  { gruppe: "kind", emoji: "🏊", name: "Schwimmbad", kosten: 25 },
+  { gruppe: "kind", emoji: "🎁", name: "Kleines Spielzeug", kosten: 30 },
+  { gruppe: "kind", emoji: "🦁", name: "Zoo-Ausflug", kosten: 40 },
+  { gruppe: "eltern", emoji: "☕", name: "Kaffee ans Bett", kosten: 5 },
+  { gruppe: "eltern", emoji: "📚", name: "1 Std. ungestört lesen", kosten: 8 },
+  { gruppe: "eltern", emoji: "🎮", name: "1 Std. Gamen", kosten: 10 },
+  { gruppe: "eltern", emoji: "🧹", name: "Ein Ämtli abgeben", kosten: 10 },
+  { gruppe: "eltern", emoji: "🍷", name: "Weinabend", kosten: 10 },
+  { gruppe: "eltern", emoji: "💆", name: "Massage", kosten: 12 },
+  { gruppe: "eltern", emoji: "😴", name: "Ausschlafen", kosten: 15 },
+  { gruppe: "eltern", emoji: "🏃", name: "Freier Nachmittag", kosten: 20 },
+  { gruppe: "eltern", emoji: "🛁", name: "Wellness-Abend", kosten: 20 },
+  { gruppe: "eltern", emoji: "🎬", name: "Kino-Abend", kosten: 25 },
+  { gruppe: "eltern", emoji: "🍽️", name: "Essen gehen zu zweit", kosten: 40 },
+  { gruppe: "alle", emoji: "🍿", name: "Familien-Filmabend", kosten: 15, sandi: 0 },
+  { gruppe: "alle", emoji: "🥐", name: "Sonntags-Zmorge im Bett", kosten: 15 },
+  { gruppe: "alle", emoji: "🏕️", name: "Familienausflug aussuchen", kosten: 30 },
+];
+const SCHATZ_EMOJIS = ["🎁", "🍦", "📺", "📖", "🛝", "🎈", "🍪", "🍕", "🚂", "🏊", "🦁", "☕", "😴", "💆", "🛁",
+  "🍷", "🎬", "🍽️", "📚", "🎮", "🏃", "🍿", "🥐", "🏕️", "🧸", "🎨", "⚽", "🚲", "🎡"];
 // Stichwort im Aufgabennamen -> passendes Emoji (erstes Treffer gewinnt)
 const EMOJI_REGELN = [
   [/z(ä|ae)hn|zahn/, "🪥"], [/t(ö|oe)pf|toilette|klo|pipi|wc/, "🚽"], [/socke/, "🧦"], [/schuh/, "👟"],
@@ -803,7 +871,8 @@ class FamilienzentralePanel extends HTMLElement {
 
     if (a === "belohnung-neu" || (a === "neu" && this._seite === "schaetze")) {
       this._mitPin(() => {
-        this._kdlg = { typ: "belohnung", id: null, name: "", emoji: "", kosten: 10, sandi_sterne: 0 };
+        this._kdlg = { typ: "belohnung", id: null, name: "", emoji: "🎁", kosten: 10, sandi_sterne: 0,
+          fuer: this._kind ? [this._kind] : [], picker: false };
         this._zeichneDialog();
       });
       return true;
@@ -811,9 +880,25 @@ class FamilienzentralePanel extends HTMLElement {
     if (a.startsWith("belohnung-edit-")) {
       const id = a.slice(15);
       const b = this._kinder.belohnungen[id];
-      this._mitPin(() => { this._kdlg = { typ: "belohnung", id, ...b }; this._zeichneDialog(); });
+      this._mitPin(() => {
+        this._kdlg = { typ: "belohnung", id, ...b, emoji: b.emoji || "🎁", fuer: [...(b.fuer || [])], picker: false };
+        this._zeichneDialog();
+      });
       return true;
     }
+    if (a.startsWith("be-") && d?.typ === "belohnung") { this._belohnungKlick(a.slice(3)); return true; }
+    // Schatz entfernen: ✕ auf der Karte -> Sicherheitsfrage -> löschen
+    if (a === "schatz-weg-ok" && d?.typ === "schatz-weg") {
+      this._mitPin(async (pin) => {
+        const b = this._kinder.belohnungen[d.id];
+        this._kdlg = null;
+        this._zeichneDialog();
+        await this._kws({ type: "familienzentrale/kinder/belohnung_loeschen", pin, belohnung_id: d.id },
+          `${b?.emoji || "🎁"} ${b?.name || "Schatz"} entfernt`);
+      });
+      return true;
+    }
+    if (a.startsWith("schatz-weg-")) { this._kdlg = { typ: "schatz-weg", id: a.slice(11) }; this._zeichneDialog(); return true; }
     if (a === "belohnung-speichern") { this._belohnungSpeichern(); return true; }
     if (a === "belohnung-loeschen") {
       if (!d.loeschen) { this._formMerken(); d.loeschen = true; this._zeichneDialog(); return true; }
@@ -876,9 +961,98 @@ class FamilienzentralePanel extends HTMLElement {
     const f = (id) => this._root.querySelector(id);
     // Routine: Eingaben landen schon beim Tippen im Zustand (_routineEingabe)
     if (d?.typ === "belohnung" && f("#be-name")) {
-      Object.assign(d, { name: f("#be-name").value, emoji: f("#be-emoji").value,
-        kosten: Number(f("#be-kosten").value) || 0, sandi_sterne: Number(f("#be-sandi").value) || 0 });
+      Object.assign(d, { name: f("#be-name").value,
+        kosten: Math.max(0, Number(f("#be-kosten").value) || 0),
+        sandi_sterne: Math.max(0, Math.min(50, Number(f("#be-sandi")?.value) || 0)) });
     }
+  }
+
+  _belohnungKlick(a) {
+    const d = this._kdlg;
+    this._formMerken();
+    if (a.startsWith("vorlage-")) {
+      const v = SCHATZ_VORLAGEN[Number(a.slice(8))];
+      const leute = this._kinderListe().map((p) => p.entity_id);
+      Object.assign(d, { name: v.name, emoji: v.emoji, kosten: v.kosten, sandi_sterne: v.sandi || 0, picker: false,
+        fuer: v.gruppe === "alle" ? [] : leute.filter((eid) => this._gruppe(eid) === v.gruppe) });
+    } else if (a === "fuer-alle") d.fuer = [];
+    else if (a.startsWith("fuer-")) {
+      const eid = a.slice(5);
+      const s = new Set(d.fuer);
+      s.has(eid) ? s.delete(eid) : s.add(eid);
+      d.fuer = [...s];
+    } else if (a === "emoji") d.picker = !d.picker;
+    else if (a.startsWith("wahl-")) { d.emoji = a.slice(5); d.picker = false; }
+    else if (a === "k-plus") d.kosten += 1;
+    else if (a === "k-minus") d.kosten = Math.max(0, d.kosten - 1);
+    else if (a === "s-plus") d.sandi_sterne = Math.min(50, d.sandi_sterne + 1);
+    else if (a === "s-minus") d.sandi_sterne = Math.max(0, d.sandi_sterne - 1);
+    this._zeichneDialog();
+  }
+
+  _belohnungDialog() {
+    const d = this._kdlg;
+    const k = this._kinder;
+    const leute = this._kinderListe();
+    const fuerAlle = !d.fuer.length;
+    const gruppen = [
+      ["kind", "👦 Für Kinder"], ["eltern", "💑 Für Mami & Papi"], ["alle", "👨‍👩‍👦 Für die ganze Familie"],
+    ];
+    const vorlagen = gruppen.map(([g, titel]) => {
+      const liste = SCHATZ_VORLAGEN.map((v, i) => ({ v, i })).filter(({ v }) => v.gruppe === g);
+      return `<div class="be-gruppe"><span class="titel">${titel}</span>${liste.map(({ v, i }) => `
+        <button type="button" class="ro-chip ${v.name === d.name ? "drin" : ""}" data-a="be-vorlage-${i}">
+          <span>${v.emoji}</span>${esc(v.name)} <small>${v.kosten}⭐</small></button>`).join("")}</div>`;
+    }).join("");
+    return `<div class="overlay" data-a="zu"><form class="karte formular breit ro">
+      <h2>${d.id ? "Schatz bearbeiten" : "Neuer Schatz"}</h2>
+
+      ${d.id ? "" : `<div class="ro-schritt klein">💡 Vorlage antippen <span class="grau">– füllt alles aus, danach anpassen</span></div>
+      <div class="ro-vorschlaege be-vorlagen">${vorlagen}</div>`}
+
+      <div class="ro-schritt"><span class="ro-nr">1</span> Was gibt es?</div>
+      <div class="ro-namezeile">
+        <button type="button" class="ro-ebtn ${d.picker ? "offen" : ""}" data-a="be-emoji" title="Bild wählen">${esc(d.emoji || "🎁")}</button>
+        <input id="be-name" value="${esc(d.name)}" placeholder="z. B. Glace essen gehen" autocomplete="off" maxlength="60">
+      </div>
+      ${d.picker ? `<div class="ro-picker">${SCHATZ_EMOJIS.map((e) =>
+        `<button type="button" class="${e === d.emoji ? "an" : ""}" data-a="be-wahl-${esc(e)}">${e}</button>`).join("")}</div>` : ""}
+
+      <div class="ro-schritt"><span class="ro-nr">2</span> Für wen?</div>
+      <div class="ro-personen">
+        <button type="button" class="ro-person ${fuerAlle ? "an" : ""}" data-a="be-fuer-alle" style="--ring:var(--fz-akzent)">
+          <span class="avatar klein familie"><ha-icon icon="mdi:account-group"></ha-icon></span>Alle</button>
+        ${leute.map((p) => `
+        <button type="button" class="ro-person ${d.fuer.includes(p.entity_id) ? "an" : ""}" data-a="be-fuer-${p.entity_id}" style="--ring:${p.farbe}">
+          <span class="avatar klein" style="--ring:${p.farbe}">${p.bild ? `<img src="${esc(p.bild)}" alt="">`
+            : `<span style="background:${pastell(p.farbe, 45)}">${esc(initial(p.name))}</span>`}</span>${esc(p.name)}</button>`).join("")}
+      </div>
+
+      <div class="ro-schritt"><span class="ro-nr">3</span> Wie viele Sterne kostet es?</div>
+      <div class="be-zaehler">
+        <button type="button" data-a="be-k-minus">−</button>
+        <input id="be-kosten" type="number" min="0" max="10000" value="${d.kosten}">
+        <span>⭐</span>
+        <button type="button" data-a="be-k-plus">＋</button>
+      </div>
+      ${d.kosten <= 30 ? `<div class="splaetze">${"⭐".repeat(d.kosten)}</div>` : ""}
+
+      <div class="ro-schritt klein">📺 Fernsehzeit dazu? <span class="grau">– 1 Sandi-Stern = 5 Minuten</span></div>
+      <div class="be-zaehler">
+        <button type="button" data-a="be-s-minus">−</button>
+        <input id="be-sandi" type="number" min="0" max="50" value="${d.sandi_sterne || 0}">
+        <span>${d.sandi_sterne ? `= ${d.sandi_sterne * 5} Min.` : "keine"}</span>
+        <button type="button" data-a="be-s-plus">＋</button>
+      </div>
+      ${k?.sandi ? "" : `<p class="grau">⚠️ Noch kein Sandi-Zähler gewählt (⚙️ → Konfigurieren → ⭐ Punkte &amp; Belohnungen).</p>`}
+
+      <div class="knoepfe">
+        ${d.id ? `<button type="button" class="gefahr" data-a="belohnung-loeschen">${d.loeschen ? "Wirklich löschen?" : "🗑 Löschen"}</button>` : ""}
+        <span class="platz"></span>
+        <button type="button" class="zweit" data-a="schliessen">Abbrechen</button>
+        <button type="button" data-a="belohnung-speichern">✔ Speichern</button>
+      </div>
+    </form></div>`;
   }
 
   // ---------- Routine-Formular ----------
@@ -913,9 +1087,14 @@ class FamilienzentralePanel extends HTMLElement {
     d.zeit = z;
     if (d.nameAuto) { d.name = ZEIT_ROUTINE[z].name; d.emoji = ZEIT_ROUTINE[z].emoji; }
     if (d.vorlage) {
-      d.aufgaben = VORLAGE[z].map((n) => this._neueZeile(VORSCHLAEGE.find((v) => v.name === n)));
+      const g = this._gruppe(d.person);
+      d.aufgaben = VORLAGE[g][z].map((n) => VORSCHLAEGE.find((v) => v.name === n && v.gruppe === g))
+        .filter(Boolean).map((v) => this._neueZeile(v));
     }
   }
+
+  // "kind" oder "eltern" – bestimmt, welche Vorlagen passen
+  _gruppe(eid) { return ERWACHSEN.test(this._kindName(eid) || "") ? "eltern" : "kind"; }
 
   _fokusZeile(i) {
     setTimeout(() => this._root.querySelector(`.ro-aname[data-i="${i}"]`)?.focus(), 50);
@@ -942,7 +1121,7 @@ class FamilienzentralePanel extends HTMLElement {
     const d = this._kdlg;
     const zeichne = () => this._zeichneDialog();
     if (a.startsWith("zeit-")) { this._routineZeit(a.slice(5)); d.picker = null; zeichne(); return; }
-    if (a.startsWith("person-")) { d.person = a.slice(7); zeichne(); return; }
+    if (a.startsWith("person-")) { d.person = a.slice(7); this._routineZeit(d.zeit); zeichne(); return; }
     if (a === "mehr") { d.mehr = !(d.mehr || d.picker === "r"); if (!d.mehr) d.picker = null; return; }
     if (a === "remoji") { d.picker = d.picker === "r" ? null : "r"; d.mehr = true; zeichne(); return; }
     if (a.startsWith("emoji-")) { const i = Number(a.slice(6)); d.picker = d.picker === i ? null : i; zeichne(); return; }
@@ -1044,7 +1223,8 @@ class FamilienzentralePanel extends HTMLElement {
       </div>
       ${d.picker === i ? picker(z.emoji, z.name, EMOJI_AUSWAHL) : ""}`).join("");
     const namen = new Set(d.aufgaben.map((x) => x.name.trim().toLowerCase()));
-    const vorschlaege = VORSCHLAEGE.map((v, i) => ({ v, i }))
+    const gruppe = this._gruppe(d.person);
+    const vorschlaege = VORSCHLAEGE.map((v, i) => ({ v, i })).filter(({ v }) => v.gruppe === gruppe)
       .sort((a, b) => (b.v.zeit.includes(d.zeit) - a.v.zeit.includes(d.zeit)));
     return `<div class="overlay" data-a="zu"><form class="karte formular breit ro">
       <h2>${d.id ? "Routine bearbeiten" : "Neue Routine"}</h2>
@@ -1066,7 +1246,7 @@ class FamilienzentralePanel extends HTMLElement {
       <div class="ro-liste">${zeilen || `<p class="grau ro-leer">Noch keine Aufgaben – unten einen Vorschlag antippen.</p>`}</div>
       <button type="button" class="ro-eigene" data-a="ro-eigene">＋ Eigene Aufgabe</button>
 
-      <div class="ro-schritt klein">💡 Vorschläge <span class="grau">– antippen zum Hinzufügen</span></div>
+      <div class="ro-schritt klein">💡 Vorschläge für ${esc(this._kindName(d.person))} <span class="grau">– antippen zum Hinzufügen</span></div>
       <div class="ro-vorschlaege">${vorschlaege.map(({ v, i }) => {
         const drin = namen.has(v.name.toLowerCase());
         return `<button type="button" class="ro-chip ${drin ? "drin" : ""} ${v.zeit.includes(d.zeit) ? "" : "andere"}" data-a="ro-vorschlag-${i}">
@@ -1100,8 +1280,8 @@ class FamilienzentralePanel extends HTMLElement {
       this._zeichneDialog();
       await this._kws({
         type: "familienzentrale/kinder/belohnung_speichern", pin, ...(d.id ? { belohnung_id: d.id } : {}),
-        name: d.name.trim(), emoji: d.emoji.trim(), kosten: Math.max(0, Math.round(d.kosten)),
-        sandi_sterne: Math.max(0, Math.round(d.sandi_sterne)),
+        name: d.name.trim(), emoji: (d.emoji || "").trim(), kosten: Math.max(0, Math.round(d.kosten)),
+        sandi_sterne: Math.max(0, Math.round(d.sandi_sterne)), fuer: d.fuer || [],
       }, "Belohnung gespeichert ✔");
     });
   }
@@ -1180,7 +1360,10 @@ class FamilienzentralePanel extends HTMLElement {
     if (!k.punkte_aktiv) return `<div class="hinweis">Das Modul „Punkte & Belohnungen“ ist ausgeschaltet.</div>`;
     const p = this._punkteVon(this._kind);
     const person = this._personen().find((x) => x.entity_id === this._kind);
-    const belohnungen = Object.entries(k.belohnungen).sort((a, b) => a[1].kosten - b[1].kosten);
+    // Nur Schätze für diese Person (ohne Auswahl = für alle)
+    const belohnungen = Object.entries(k.belohnungen)
+      .filter(([, b]) => !b.fuer?.length || b.fuer.includes(this._kind))
+      .sort((a, b) => a[1].kosten - b[1].kosten);
     // Sternenglas: jeder Punkt ein Stern (ab 60 Sternen wird nur noch das Glas voller)
     const sichtbar = Math.min(p, 60);
     let html = `<div class="kinder">
@@ -1203,6 +1386,7 @@ class FamilienzentralePanel extends HTMLElement {
              <span class="weg-stern" style="left:${Math.round(anteil * 100)}%">⭐</span>
              <span class="weg-ziel">${esc(b.emoji || "🎁")}</span></div>`;
       html += `<button class="belohnung ${leistbar ? "leistbar" : ""}" data-a="${this._bearbeiten ? `belohnung-edit-${id}` : `einloesen-${id}`}">
+        ${this._bearbeiten ? `<span class="schatz-weg" data-a="schatz-weg-${id}" title="Entfernen"><ha-icon icon="mdi:close"></ha-icon></span>` : ""}
         <span class="eemoji">${esc(b.emoji || "🎁")}</span>
         <b>${esc(b.name)}</b>
         ${fortschritt}
@@ -1267,25 +1451,18 @@ class FamilienzentralePanel extends HTMLElement {
         <div class="knoepfe"><span class="platz"></span><button type="button" class="zweit" data-a="schliessen">Abbrechen</button></div>`, "pin");
     }
     if (d.typ === "routine") return this._routineDialog();
-    if (d.typ === "belohnung") {
+    if (d.typ === "belohnung") return this._belohnungDialog();
+    if (d.typ === "schatz-weg") {
+      const b = k.belohnungen[d.id] || {};
       return huelle(`
-        <h2>${d.id ? "Belohnung bearbeiten" : "Neue Belohnung"}</h2>
-        <div class="reihe">
-          <label style="flex:0 0 76px">Emoji<input id="be-emoji" value="${esc(d.emoji)}" placeholder="🍦" maxlength="4"></label>
-          <label>Name<input id="be-name" value="${esc(d.name)}" placeholder="z. B. Eis essen gehen" autocomplete="off"></label>
-        </div>
-        <div class="reihe">
-          <label>Kosten (⭐)<input id="be-kosten" type="number" min="0" value="${d.kosten}"></label>
-          <label>📺 Sandi-Sterne dazu<input id="be-sandi" type="number" min="0" max="50" value="${d.sandi_sterne || 0}"></label>
-        </div>
-        <p class="grau">Sandi-Sterne werden beim Einlösen auf den Sandi-Zähler gutgeschrieben und als Fernsehzeit verrechnet.
-          ${k?.sandi ? "" : "⚠️ Noch kein Sandi-Zähler gewählt (⚙️ → Konfigurieren → ⭐ Punkte & Belohnungen)."}</p>
-        <div class="knoepfe">
-          ${d.id ? `<button type="button" class="gefahr" data-a="belohnung-loeschen">${d.loeschen ? "Wirklich löschen?" : "🗑 Löschen"}</button>` : ""}
-          <span class="platz"></span>
-          <button type="button" class="zweit" data-a="schliessen">Abbrechen</button>
-          <button type="button" data-a="belohnung-speichern">Speichern</button>
-        </div>`);
+        <div class="einloesen-gross">${esc(b.emoji || "🎁")}</div>
+        <h2 style="text-align:center">„${esc(b.name || "")}“ entfernen?</h2>
+        <p class="grau" style="text-align:center">Der Schatz verschwindet aus dem Laden${b.fuer?.length
+          ? ` von ${esc(b.fuer.map((e) => this._kindName(e)).join(", "))}` : " für alle"}. Gesammelte Sterne bleiben erhalten.</p>
+        <div class="knoepfe"><span class="platz"></span>
+          <button type="button" class="zweit" data-a="schliessen">Behalten</button>
+          <button type="button" class="gefahr" data-a="schatz-weg-ok">🗑 Entfernen</button>
+        </div>`, "pin");
     }
     if (d.typ === "einloesen") {
       const b = k.belohnungen[d.id];
@@ -2510,6 +2687,21 @@ FamilienzentralePanel.css = `
   .ro-chip span { font-size:1.4em; line-height:1; }
   .ro-chip.andere { opacity:.6; }
   .ro-chip.drin { opacity:1; background:color-mix(in srgb, #43a047 16%, var(--fz-karte)); border-color:#43a047; }
+  .belohnung { position:relative; }
+  .schatz-weg { position:absolute; top:8px; right:8px; width:44px; height:44px; border-radius:50%; z-index:1;
+    display:flex; align-items:center; justify-content:center; color:#fff; background:var(--error-color, #db4437);
+    box-shadow:0 2px 6px rgba(0,0,0,.2); }
+  .schatz-weg ha-icon { --mdc-icon-size:24px; }
+  .be-vorlagen { flex-direction:column; gap:10px; max-height:34vh; overflow:auto; padding:2px; }
+  .be-gruppe { display:flex; flex-wrap:wrap; gap:8px; }
+  .be-gruppe .titel { width:100%; font-weight:800; color:var(--fz-grau); font-size:.9em; }
+  .ro-chip small { color:var(--fz-grau); font-weight:700; }
+  .avatar.klein.familie { color:var(--fz-grau); }
+  .avatar.klein.familie ha-icon { --mdc-icon-size:24px; }
+  .be-zaehler { display:flex; align-items:center; gap:10px; }
+  .be-zaehler button { width:52px; height:52px; border-radius:50%; background:var(--fz-grund); font-size:1.5em; font-weight:800; }
+  .formular .be-zaehler input { width:90px; text-align:center; font-size:1.4em; font-weight:800; }
+  .be-zaehler span { font-weight:800; font-size:1.1em; min-width:3em; }
   .ro-mehr { margin-top:16px; padding:10px 12px; border-radius:14px; background:var(--fz-grund); }
   .ro-mehr summary { cursor:pointer; font-weight:700; color:var(--fz-grau); }
   .ro-mehr summary b { color:var(--fz-text); }

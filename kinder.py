@@ -4,7 +4,7 @@ Daten in .storage/familienzentrale.kinder:
   routinen:    {id: {name, emoji, zeit (morgen|tag|abend), person, aufgaben: [{id, name, emoji, punkte}]}}
   erledigt:    {"JJJJ-MM-TT": {aufgabe_id: true}}      -> jeden Tag automatisch neu
   punkte:      {person_entity_id: int}
-  belohnungen: {id: {name, emoji, kosten, sandi_sterne}}
+  belohnungen: {id: {name, emoji, kosten, sandi_sterne, fuer: [person_entity_id] (leer = alle)}}
   verlauf:     [{zeit, person, text, punkte}]
 
 Eine Belohnung mit sandi_sterne > 0 schreibt beim Einlösen Sterne auf den
@@ -257,6 +257,8 @@ def ws_abhaken(hass: HomeAssistant, connection: websocket_api.ActiveConnection, 
         vol.Optional("emoji", default=""): str,
         vol.Required("kosten"): vol.All(int, vol.Range(min=0, max=10000)),
         vol.Optional("sandi_sterne", default=0): vol.All(int, vol.Range(min=0, max=50)),
+        # Für wen die Belohnung im Laden erscheint (leer = für alle)
+        vol.Optional("fuer", default=[]): [str],
     }
 )
 @callback
@@ -269,6 +271,7 @@ def ws_belohnung_speichern(hass: HomeAssistant, connection: websocket_api.Active
         "emoji": msg["emoji"].strip()[:4],
         "kosten": msg["kosten"],
         "sandi_sterne": msg["sandi_sterne"],
+        "fuer": [p for p in msg["fuer"] if p.startswith("person.")],
     }
     k.speichern()
     connection.send_result(msg["id"], _antwort(k))
