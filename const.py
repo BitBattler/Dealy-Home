@@ -20,8 +20,7 @@ CONF_PETS: Final = "haustiere"
 CONF_SHOPPING_LIST: Final = "einkaufsliste"
 CONF_MEALS: Final = "mahlzeiten"
 CONF_FOOD_NOTES: Final = "essens_hinweise"
-CONF_SANDI_COUNTER: Final = "sandi_zaehler"
-SIGNAL_PUNKTE: Final = "familienzentrale_punkte"
+CONF_SANDI_COUNTER: Final = "sandi_zaehler"SIGNAL_PUNKTE: Final = "familienzentrale_punkte"
 
 # Essensplan
 MAHLZEITEN: Final = ["fruehstueck", "mittag", "abend"]

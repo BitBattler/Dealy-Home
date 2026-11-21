@@ -143,6 +143,5 @@ class PersonenSensor(SensorEntity):
             "familienzentrale": True,
             "personen": liste,
             "kalender": self._entry.options.get(CONF_CALENDARS, []),
-            "einkaufsliste": self._entry.options.get(CONF_SHOPPING_LIST) or None,
-            "aktive_module": [m for m in self._entry.options.get(CONF_MODULES, []) if m in MODULES],
+            "einkaufsliste": self._entry.options.get(CONF_SHOPPING_LIST) or None,            "aktive_module": [m for m in self._entry.options.get(CONF_MODULES, []) if m in MODULES],
         }

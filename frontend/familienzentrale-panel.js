@@ -901,7 +901,7 @@ class FamilienzentralePanel extends HTMLElement {
     const jetzt = h < 11 ? "morgen" : h >= 17 ? "abend" : "tag";
     const routinen = Object.entries(k.routinen).filter(([, r]) => r.person === this._kind)
       .sort((a, b) => ordnung[a[1].zeit] - ordnung[b[1].zeit]);
-    let html = `<div class="kinder">`;
+    let html = `<div class="kinder routinen-spalten">`;
     if (!routinen.length) {
       html += `<div class="hinweis">Für ${esc(this._kindName(this._kind))} gibt es noch keine Routinen.<br>
         <button class="knopf-gross" data-a="routine-neu">＋ Routine anlegen</button></div>`;
@@ -2111,8 +2111,7 @@ FamilienzentralePanel.css = `
   .rail span { max-width:96px; }
   .rail.aktiv { background:color-mix(in srgb, var(--fz-akzent) 14%, var(--fz-karte)); color:var(--fz-text);
     box-shadow:inset 4px 0 0 var(--fz-akzent); }
-  .rail.klein { min-height:64px; }
-  .fab { width:76px; height:76px; margin-top:8px; }
+  .rail.klein { min-height:64px; }  .fab { width:76px; height:76px; margin-top:8px; }
   .fab ha-icon { --mdc-icon-size:42px; }
 
   /* Touch-Geräte: alle Knöpfe im Kopf mit großer Trefferfläche */
@@ -2230,6 +2229,23 @@ FamilienzentralePanel.css = `
     .glas-innen { min-height:130px; }
     .rgitter { grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); }
     .liste, .essen, .kinder { padding:10px; }
+  }
+
+  /* Aufgaben untereinander (vertikal); Routinen als Spalten nebeneinander */
+  .kinder.routinen-spalten { display:grid; grid-template-columns:repeat(auto-fit, minmax(340px, 1fr));
+    align-items:start; align-content:start; }
+  .kacheln { display:flex !important; flex-direction:column; gap:10px; }
+  .kachel { flex-direction:row; justify-content:flex-start; align-items:center; gap:16px;
+    min-height:84px !important; padding:10px 18px; text-align:left; border-radius:16px; }
+  .kemoji { font-size:2.8em !important; flex:none; width:1.2em; text-align:center; }
+  .ktext { flex:1; text-align:left; font-size:1.3em; }
+  .kpunkte { flex:none; font-size:1.2em; }
+  .kachel.erledigt .ktext { text-decoration:line-through; text-decoration-thickness:3px; opacity:.6; }
+  @container fz (max-width: 760px) {
+    .kinder.routinen-spalten { grid-template-columns:1fr; }
+    .kachel { min-height:68px !important; padding:8px 12px; gap:12px; }
+    .kemoji { font-size:2.2em !important; }
+    .ktext { font-size:1.1em; }
   }
 `;
 
