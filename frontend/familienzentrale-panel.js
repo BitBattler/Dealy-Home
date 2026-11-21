@@ -28,6 +28,69 @@ const KINDER_SEITEN = ["aufgaben", "glaeser", "schaetze"];
 // Modul-Schlüssel -> Seite im Panel
 const SEITEN = { kalender: "kalender", essensplan: "essen", routinen: "aufgaben", punkte: "schaetze" };
 const ZEIT_NAME = { morgen: "🌅 Morgen", tag: "☀️ Tag", abend: "🌙 Abend" };
+const ZEIT_ROUTINE = {
+  morgen: { emoji: "🌅", name: "Morgenroutine", wort: "Morgen" },
+  tag: { emoji: "☀️", name: "Tagesaufgaben", wort: "Tag" },
+  abend: { emoji: "🌙", name: "Abendroutine", wort: "Abend" },
+};
+
+// Aufgaben-Vorschläge (antippen = hinzufügen); zeit = wann sie typischerweise passen
+const VORSCHLAEGE = [
+  { emoji: "🚽", name: "Aufs Töpfchen", zeit: ["morgen", "abend"] },
+  { emoji: "🪥", name: "Zähne putzen", zeit: ["morgen", "abend"] },
+  { emoji: "👕", name: "Anziehen", zeit: ["morgen"] },
+  { emoji: "🥣", name: "Frühstücken", zeit: ["morgen"] },
+  { emoji: "💇", name: "Haare kämmen", zeit: ["morgen"] },
+  { emoji: "👟", name: "Schuhe anziehen", zeit: ["morgen"] },
+  { emoji: "🧥", name: "Jacke anziehen", zeit: ["morgen"] },
+  { emoji: "🎒", name: "Rucksack nehmen", zeit: ["morgen"] },
+  { emoji: "🧼", name: "Hände waschen", zeit: ["tag", "abend"] },
+  { emoji: "🧸", name: "Spielzeug aufräumen", zeit: ["tag", "abend"] },
+  { emoji: "🍽️", name: "Tisch decken", zeit: ["tag"] },
+  { emoji: "💧", name: "Wasser trinken", zeit: ["tag"] },
+  { emoji: "🐕", name: "Ameo füttern", zeit: ["tag"] },
+  { emoji: "🌱", name: "Blumen giessen", zeit: ["tag"] },
+  { emoji: "🍎", name: "Obst essen", zeit: ["tag"] },
+  { emoji: "🧺", name: "Wäsche helfen", zeit: ["tag"] },
+  { emoji: "🛁", name: "Baden", zeit: ["abend"] },
+  { emoji: "👚", name: "Pyjama anziehen", zeit: ["abend"] },
+  { emoji: "📖", name: "Geschichte lesen", zeit: ["abend"] },
+  { emoji: "🛏️", name: "Ins Bett gehen", zeit: ["abend"] },
+  { emoji: "🤗", name: "Gute-Nacht-Kuss", zeit: ["abend"] },
+];
+// Startaufgaben einer neuen Routine je Tageszeit
+const VORLAGE = {
+  morgen: ["Aufs Töpfchen", "Zähne putzen", "Anziehen", "Frühstücken"],
+  tag: ["Hände waschen", "Spielzeug aufräumen", "Wasser trinken"],
+  abend: ["Baden", "Pyjama anziehen", "Zähne putzen", "Geschichte lesen"],
+};
+// Stichwort im Aufgabennamen -> passendes Emoji (erstes Treffer gewinnt)
+const EMOJI_REGELN = [
+  [/z(ä|ae)hn|zahn/, "🪥"], [/t(ö|oe)pf|toilette|klo|pipi|wc/, "🚽"], [/socke/, "🧦"], [/schuh/, "👟"],
+  [/jacke|mantel/, "🧥"], [/m(ü|ue)tze|kappe/, "🧢"], [/pyjama|schlafanzug/, "👚"], [/anzieh|kleid|hose|pulli/, "👕"],
+  [/fr(ü|ue)hst/, "🥣"], [/obst|apfel/, "🍎"], [/gem(ü|ue)se/, "🥦"], [/trink|wasser/, "💧"],
+  [/tisch|essen|mittag|abendessen/, "🍽️"], [/h(ä|ae)nde|waschen|seife/, "🧼"], [/bad|dusch/, "🛁"],
+  [/haar|k(ä|ae)mm|b(ü|ue)rst/, "💇"], [/creme|eincrem/, "🧴"], [/nase|schnäuz|schneuz/, "🤧"],
+  [/bett|schlaf|nickerchen/, "🛏️"], [/buch|lesen|geschicht/, "📖"], [/aufr(ä|ae)um|spielzeug|zimmer/, "🧸"],
+  [/ameo|hund|gassi/, "🐕"], [/katze/, "🐈"], [/f(ü|ue)tter/, "🥕"], [/blume|gie(ss|ß)|pflanze/, "🌱"],
+  [/w(ä|ae)sche/, "🧺"], [/m(ü|ue)ll|abfall/, "🗑️"], [/rucksack|tasche/, "🎒"], [/kita|kindergarten|schule/, "🏫"],
+  [/mal(en)?\b|zeichn|bastel/, "🎨"], [/musik|sing|lied/, "🎵"], [/turn|sport|bewegen|hüpf/, "🤸"],
+  [/kuss|kuschel|umarm|gute.?nacht/, "🤗"], [/danke|bitte/, "🙏"], [/licht|lampe/, "💡"], [/vitamin|medizin/, "💊"],
+  [/hausaufgab|(ü|ue)ben|schreib/, "✏️"], [/drau(ss|ß)en|spazier|garten/, "🌳"], [/helfen|hilf/, "🤝"],
+];
+const EMOJI_AUSWAHL = ["⭐", "🪥", "🚽", "👕", "🧦", "👟", "🧥", "🥣", "🍎", "💧", "🍽️", "🧼", "🛁", "💇", "🧴",
+  "🛏️", "📖", "🧸", "🐕", "🌱", "🧺", "🎒", "🏫", "🎨", "🎵", "🤸", "🤗", "🙏", "💡", "✏️", "🌳", "🤝", "🗑️", "🦷", "👚"];
+const ROUTINE_EMOJIS = ["🌅", "☀️", "🌙", "⭐", "🏫", "🛁", "🍽️", "🧸", "🎒", "🐕", "🌈", "🚀"];
+const emojiFuer = (name) => {
+  const n = String(name || "").toLowerCase();
+  for (const [re, e] of EMOJI_REGELN) if (re.test(n)) return e;
+  return "";
+};
+// Passende Emojis zu einem Namen zuerst, danach die übrige Auswahl
+const emojiVorschlaege = (name) => {
+  const n = String(name || "").toLowerCase();
+  return [...new Set(EMOJI_REGELN.filter(([re]) => re.test(n)).map(([, e]) => e))];
+};
 
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g,
   (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -280,6 +343,7 @@ class FamilienzentralePanel extends HTMLElement {
     });
     // Rezeptsuche im Mahlzeit-Dialog: Liste filtern, ohne neu zu zeichnen
     this._root.addEventListener("input", (e) => {
+      if (this._kdlg?.typ === "routine") { this._routineEingabe(e.target); return; }
       if (e.target.id !== "f-suche") return;
       const q = e.target.value.trim().toLowerCase();
       this._root.querySelectorAll(".rwahl").forEach((b) => { b.hidden = !!q && !b.dataset.name.includes(q); });
@@ -720,23 +784,12 @@ class FamilienzentralePanel extends HTMLElement {
     if (a.startsWith("aufgabe-")) { this._abhaken(...a.slice(8).split("|")); return true; }
 
     if (a === "routine-neu" || (a === "neu" && this._seite === "aufgaben")) {
-      this._mitPin(() => {
-        this._kdlg = { typ: "routine", id: null, name: "", emoji: "", zeit: "morgen", person: this._kind,
-          aufgaben: "🪥 Zähne putzen | 1\n👕 Anziehen | 1" };
-        this._zeichneDialog();
-      });
+      this._mitPin(() => this._routineOeffnen(null));
       return true;
     }
-    if (a.startsWith("routine-edit-")) {
-      const id = a.slice(13);
-      const r = this._kinder.routinen[id];
-      this._mitPin(() => {
-        this._kdlg = { typ: "routine", id, name: r.name, emoji: r.emoji, zeit: r.zeit, person: r.person,
-          aufgaben: r.aufgaben.map((x) => `${x.emoji ? `${x.emoji} ` : ""}${x.name} | ${x.punkte}`).join("\n") };
-        this._zeichneDialog();
-      });
-      return true;
-    }
+    if (a.startsWith("routine-edit-")) { const id = a.slice(13); this._mitPin(() => this._routineOeffnen(id)); return true; }
+    if (a.startsWith("routine-plus-")) { const id = a.slice(13); this._mitPin(() => this._routineOeffnen(id, true)); return true; }
+    if (a.startsWith("ro-") && d?.typ === "routine") { this._routineKlick(a.slice(3)); return true; }
     if (a === "routine-speichern") { this._routineSpeichern(); return true; }
     if (a === "routine-loeschen") {
       if (!d.loeschen) { this._formMerken(); d.loeschen = true; this._zeichneDialog(); return true; }
@@ -821,33 +874,221 @@ class FamilienzentralePanel extends HTMLElement {
   _formMerken() {
     const d = this._kdlg;
     const f = (id) => this._root.querySelector(id);
-    if (d?.typ === "routine" && f("#ro-name")) {
-      Object.assign(d, { name: f("#ro-name").value, emoji: f("#ro-emoji").value, zeit: f("#ro-zeit").value,
-        person: f("#ro-person").value, aufgaben: f("#ro-aufgaben").value });
-    }
+    // Routine: Eingaben landen schon beim Tippen im Zustand (_routineEingabe)
     if (d?.typ === "belohnung" && f("#be-name")) {
       Object.assign(d, { name: f("#be-name").value, emoji: f("#be-emoji").value,
         kosten: Number(f("#be-kosten").value) || 0, sandi_sterne: Number(f("#be-sandi").value) || 0 });
     }
   }
 
-  _routineSpeichern() {
-    this._formMerken();
+  // ---------- Routine-Formular ----------
+  _neueZeile(v = null) {
+    return v ? { emoji: v.emoji, name: v.name, punkte: 1, auto: false }
+      : { emoji: "⭐", name: "", punkte: 1, auto: true };
+  }
+
+  _routineOeffnen(id, neueZeile = false) {
+    const r = id ? this._kinder.routinen[id] : null;
+    if (r) {
+      this._kdlg = { typ: "routine", id, name: r.name, emoji: r.emoji || "", zeit: r.zeit, person: r.person,
+        nameAuto: false, vorlage: false, picker: null,
+        aufgaben: r.aufgaben.map((x) => ({ id: x.id, emoji: x.emoji || "⭐", name: x.name, punkte: x.punkte ?? 1, auto: false })) };
+    } else {
+      const h = new Date().getHours();
+      const zeit = h < 11 ? "morgen" : h >= 16 ? "abend" : "tag";
+      // Gibt es die Tageszeit für das Kind schon, die nächste freie nehmen
+      const belegt = Object.values(this._kinder?.routinen || {}).filter((x) => x.person === this._kind).map((x) => x.zeit);
+      const frei = [zeit, "morgen", "abend", "tag"].find((z) => !belegt.includes(z)) || zeit;
+      this._kdlg = { typ: "routine", id: null, person: this._kind || this._kinderListe()[0]?.entity_id,
+        nameAuto: true, vorlage: true, picker: null, aufgaben: [] };
+      this._routineZeit(frei);
+    }
+    if (neueZeile) this._kdlg.aufgaben.push(this._neueZeile());
+    this._zeichneDialog();
+    if (neueZeile) this._fokusZeile(this._kdlg.aufgaben.length - 1);
+  }
+
+  _routineZeit(z) {
     const d = this._kdlg;
-    if (!d.name.trim()) { this._zeigeToast("Bitte einen Namen eingeben."); return; }
-    const aufgaben = d.aufgaben.split("\n").map((z) => z.trim()).filter(Boolean).map((z) => {
-      const m = z.match(/^(\p{Extended_Pictographic}(?:️|‍\p{Extended_Pictographic})*)?\s*(.*?)\s*(?:\|\s*(\d+)\s*)?$/u);
-      return { emoji: m?.[1] || "", name: (m?.[2] || z).slice(0, 60), punkte: m?.[3] ? Number(m[3]) : 1 };
-    }).filter((x) => x.name);
-    if (!aufgaben.length) { this._zeigeToast("Bitte mindestens eine Aufgabe eintragen."); return; }
+    d.zeit = z;
+    if (d.nameAuto) { d.name = ZEIT_ROUTINE[z].name; d.emoji = ZEIT_ROUTINE[z].emoji; }
+    if (d.vorlage) {
+      d.aufgaben = VORLAGE[z].map((n) => this._neueZeile(VORSCHLAEGE.find((v) => v.name === n)));
+    }
+  }
+
+  _fokusZeile(i) {
+    setTimeout(() => this._root.querySelector(`.ro-aname[data-i="${i}"]`)?.focus(), 50);
+  }
+
+  // Tippen im Formular: Zustand mitschreiben, Emoji live vorschlagen (ohne neu zu zeichnen)
+  _routineEingabe(el) {
+    const d = this._kdlg;
+    if (el.id === "ro-name") { d.name = el.value; d.nameAuto = false; return; }
+    if (!el.classList.contains("ro-aname")) return;
+    const i = Number(el.dataset.i);
+    const z = d.aufgaben[i];
+    if (!z) return;
+    z.name = el.value;
+    d.vorlage = false;
+    if (z.auto) {
+      z.emoji = emojiFuer(z.name) || "⭐";
+      const knopf = this._root.querySelector(`[data-a="ro-emoji-${i}"]`);
+      if (knopf) knopf.textContent = z.emoji;
+    }
+  }
+
+  _routineKlick(a) {
+    const d = this._kdlg;
+    const zeichne = () => this._zeichneDialog();
+    if (a.startsWith("zeit-")) { this._routineZeit(a.slice(5)); d.picker = null; zeichne(); return; }
+    if (a.startsWith("person-")) { d.person = a.slice(7); zeichne(); return; }
+    if (a === "mehr") { d.mehr = !(d.mehr || d.picker === "r"); if (!d.mehr) d.picker = null; return; }
+    if (a === "remoji") { d.picker = d.picker === "r" ? null : "r"; d.mehr = true; zeichne(); return; }
+    if (a.startsWith("emoji-")) { const i = Number(a.slice(6)); d.picker = d.picker === i ? null : i; zeichne(); return; }
+    if (a.startsWith("wahl-")) {
+      const e = a.slice(5);
+      if (d.picker === "r") d.emoji = e;
+      else if (d.aufgaben[d.picker]) Object.assign(d.aufgaben[d.picker], { emoji: e, auto: false });
+      d.picker = null;
+      d.vorlage = false;
+      zeichne();
+      return;
+    }
+    if (a.startsWith("plus-") || a.startsWith("minus-")) {
+      const [art, i] = a.split("-");
+      const z = d.aufgaben[Number(i)];
+      if (z) z.punkte = Math.max(1, Math.min(5, z.punkte + (art === "plus" ? 1 : -1)));
+      d.vorlage = false;
+      zeichne();
+      return;
+    }
+    if (a.startsWith("hoch-")) {
+      const i = Number(a.slice(5));
+      if (i > 0) [d.aufgaben[i - 1], d.aufgaben[i]] = [d.aufgaben[i], d.aufgaben[i - 1]];
+      d.picker = null;
+      d.vorlage = false;
+      zeichne();
+      return;
+    }
+    if (a.startsWith("weg-")) {
+      d.aufgaben.splice(Number(a.slice(4)), 1);
+      d.picker = null;
+      d.vorlage = false;
+      zeichne();
+      return;
+    }
+    if (a.startsWith("vorschlag-")) {
+      const v = VORSCHLAEGE[Number(a.slice(10))];
+      const idx = d.aufgaben.findIndex((x) => x.name.trim().toLowerCase() === v.name.toLowerCase());
+      if (idx >= 0) d.aufgaben.splice(idx, 1);
+      else d.aufgaben.push(this._neueZeile(v));
+      d.picker = null;
+      d.vorlage = false;
+      zeichne();
+      return;
+    }
+    if (a === "eigene") {
+      d.aufgaben.push(this._neueZeile());
+      d.picker = null;
+      d.vorlage = false;
+      zeichne();
+      this._fokusZeile(d.aufgaben.length - 1);
+    }
+  }
+
+  _routineSpeichern() {
+    const d = this._kdlg;
+    const aufgaben = d.aufgaben.filter((x) => x.name.trim()).map((x) => ({
+      ...(x.id ? { id: x.id } : {}), emoji: x.emoji === "⭐" && x.auto ? "" : x.emoji,
+      name: x.name.trim().slice(0, 60), punkte: x.punkte,
+    }));
+    if (!aufgaben.length) { this._zeigeToast("Bitte mindestens eine Aufgabe hinzufügen."); return; }
+    if (!d.person) { this._zeigeToast("Bitte wählen, für wen die Routine ist."); return; }
+    const name = (d.name || "").trim() || ZEIT_ROUTINE[d.zeit].name;
     this._mitPin(async (pin) => {
       this._kdlg = null;
       this._zeichneDialog();
       await this._kws({
         type: "familienzentrale/kinder/routine_speichern", pin, ...(d.id ? { routine_id: d.id } : {}),
-        name: d.name.trim(), emoji: d.emoji.trim(), zeit: d.zeit, person: d.person, aufgaben,
+        name, emoji: (d.emoji || "").trim(), zeit: d.zeit, person: d.person, aufgaben,
       }, "Routine gespeichert ✔");
     });
+  }
+
+  _routineDialog() {
+    const d = this._kdlg;
+    const kinder = this._kinderListe();
+    const picker = (aktuell, name, liste) => {
+      const passend = emojiVorschlaege(name).filter((e) => e !== aktuell);
+      const rest = liste.filter((e) => !passend.includes(e));
+      return `<div class="ro-picker">
+        ${passend.length ? `<span class="titel">✨ Passt zu „${esc(name)}“</span>${passend.map((e) =>
+          `<button type="button" class="vor" data-a="ro-wahl-${esc(e)}">${e}</button>`).join("")}
+          <span class="titel">Alle</span>` : ""}
+        ${rest.map((e) => `<button type="button" class="${e === aktuell ? "an" : ""}" data-a="ro-wahl-${esc(e)}">${e}</button>`).join("")}
+      </div>`;
+    };
+    const zeilen = d.aufgaben.map((z, i) => `
+      <div class="ro-zeile">
+        <button type="button" class="ro-ebtn ${d.picker === i ? "offen" : ""}" data-a="ro-emoji-${i}" title="Bild wählen">${esc(z.emoji || "⭐")}</button>
+        <input class="ro-aname" data-i="${i}" value="${esc(z.name)}" placeholder="Was soll gemacht werden?" autocomplete="off" maxlength="60">
+        <div class="ro-sterne" title="Wie viele Sterne gibt es?">
+          <button type="button" data-a="ro-minus-${i}" ${z.punkte <= 1 ? "disabled" : ""}>−</button>
+          <b>${"⭐".repeat(z.punkte)}</b>
+          <button type="button" data-a="ro-plus-${i}" ${z.punkte >= 5 ? "disabled" : ""}>＋</button>
+        </div>
+        ${i > 0 ? `<button type="button" class="ro-klein" data-a="ro-hoch-${i}" title="Nach oben"><ha-icon icon="mdi:arrow-up"></ha-icon></button>`
+          : `<span class="ro-klein"></span>`}
+        <button type="button" class="ro-klein ro-weg" data-a="ro-weg-${i}" title="Entfernen"><ha-icon icon="mdi:close"></ha-icon></button>
+      </div>
+      ${d.picker === i ? picker(z.emoji, z.name, EMOJI_AUSWAHL) : ""}`).join("");
+    const namen = new Set(d.aufgaben.map((x) => x.name.trim().toLowerCase()));
+    const vorschlaege = VORSCHLAEGE.map((v, i) => ({ v, i }))
+      .sort((a, b) => (b.v.zeit.includes(d.zeit) - a.v.zeit.includes(d.zeit)));
+    return `<div class="overlay" data-a="zu"><form class="karte formular breit ro">
+      <h2>${d.id ? "Routine bearbeiten" : "Neue Routine"}</h2>
+
+      <div class="ro-schritt"><span class="ro-nr">1</span> Wann?</div>
+      <div class="ro-zeiten">${Object.entries(ZEIT_ROUTINE).map(([z, x]) => `
+        <button type="button" class="ro-wahl ${z === d.zeit ? "an" : ""}" data-a="ro-zeit-${z}">
+          <span class="gross">${x.emoji}</span>${x.wort}</button>`).join("")}</div>
+
+      ${kinder.length > 1 || !d.person ? `
+      <div class="ro-schritt"><span class="ro-nr">2</span> Für wen?</div>
+      <div class="ro-personen">${kinder.map((p) => `
+        <button type="button" class="ro-person ${p.entity_id === d.person ? "an" : ""}" data-a="ro-person-${p.entity_id}" style="--ring:${p.farbe}">
+          <span class="avatar klein" style="--ring:${p.farbe}">${p.bild ? `<img src="${esc(p.bild)}" alt="">`
+            : `<span style="background:${pastell(p.farbe, 45)}">${esc(initial(p.name))}</span>`}</span>${esc(p.name)}</button>`).join("")}</div>` : ""}
+
+      <div class="ro-schritt"><span class="ro-nr">${kinder.length > 1 || !d.person ? 3 : 2}</span> Aufgaben
+        <span class="grau">– Bild antippen zum Ändern, ⭐ = wie viele Sterne es gibt</span></div>
+      <div class="ro-liste">${zeilen || `<p class="grau ro-leer">Noch keine Aufgaben – unten einen Vorschlag antippen.</p>`}</div>
+      <button type="button" class="ro-eigene" data-a="ro-eigene">＋ Eigene Aufgabe</button>
+
+      <div class="ro-schritt klein">💡 Vorschläge <span class="grau">– antippen zum Hinzufügen</span></div>
+      <div class="ro-vorschlaege">${vorschlaege.map(({ v, i }) => {
+        const drin = namen.has(v.name.toLowerCase());
+        return `<button type="button" class="ro-chip ${drin ? "drin" : ""} ${v.zeit.includes(d.zeit) ? "" : "andere"}" data-a="ro-vorschlag-${i}">
+          <span>${v.emoji}</span>${esc(v.name)}${drin ? " ✓" : ""}</button>`;
+      }).join("")}</div>
+
+      <details class="ro-mehr" ${d.mehr || d.picker === "r" ? "open" : ""}>
+        <summary data-a="ro-mehr">Name &amp; Bild der Routine: <b>${esc(d.emoji || "📋")} ${esc(d.name || ZEIT_ROUTINE[d.zeit].name)}</b></summary>
+        <div class="ro-namezeile">
+          <button type="button" class="ro-ebtn" data-a="ro-remoji" title="Bild wählen">${esc(d.emoji || "📋")}</button>
+          <input id="ro-name" value="${esc(d.name)}" placeholder="${esc(ZEIT_ROUTINE[d.zeit].name)}" autocomplete="off" maxlength="60">
+        </div>
+        ${d.picker === "r" ? picker(d.emoji, d.name, ROUTINE_EMOJIS) : ""}
+      </details>
+
+      <div class="knoepfe">
+        ${d.id ? `<button type="button" class="gefahr" data-a="routine-loeschen">${d.loeschen ? "Wirklich löschen?" : "🗑 Löschen"}</button>` : ""}
+        <span class="platz"></span>
+        <button type="button" class="zweit" data-a="schliessen">Abbrechen</button>
+        <button type="button" data-a="routine-speichern">✔ Speichern</button>
+      </div>
+    </form></div>`;
   }
 
   _belohnungSpeichern() {
@@ -923,7 +1164,8 @@ class FamilienzentralePanel extends HTMLElement {
             <span class="kemoji">${esc(x.emoji || "⭐")}</span>
             <span class="ktext">${esc(x.name)}</span>
             <span class="kpunkte">${k.erledigt[x.id] ? "✓" : "⭐".repeat(Math.min(x.punkte, 5))}</span>
-          </button>`).join("")}</div>
+          </button>`).join("")}
+          ${this._bearbeiten ? `<button class="kachel-neu" data-a="routine-plus-${rid}">＋ Aufgabe hinzufügen</button>` : ""}</div>
       </section>`;
     }
     if (this._bearbeiten && routinen.length) {
@@ -1024,28 +1266,7 @@ class FamilienzentralePanel extends HTMLElement {
           : `<button type="button" data-a="pin-${t}">${t}</button>`).join("")}</div>
         <div class="knoepfe"><span class="platz"></span><button type="button" class="zweit" data-a="schliessen">Abbrechen</button></div>`, "pin");
     }
-    if (d.typ === "routine") {
-      return huelle(`
-        <h2>${d.id ? "Routine bearbeiten" : "Neue Routine"}</h2>
-        <div class="reihe">
-          <label style="flex:0 0 76px">Emoji<input id="ro-emoji" value="${esc(d.emoji)}" placeholder="🌅" maxlength="4"></label>
-          <label>Name<input id="ro-name" value="${esc(d.name)}" placeholder="z. B. Morgenroutine" autocomplete="off"></label>
-        </div>
-        <div class="reihe">
-          <label>Wann<select id="ro-zeit">${Object.entries(ZEIT_NAME).map(([z, n]) =>
-            `<option value="${z}" ${z === d.zeit ? "selected" : ""}>${n}</option>`).join("")}</select></label>
-          <label>Für<select id="ro-person">${this._kinderListe().map((p) =>
-            `<option value="${p.entity_id}" ${p.entity_id === d.person ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select></label>
-        </div>
-        <label>Aufgaben – eine pro Zeile: „Emoji Name | Punkte“
-          <textarea id="ro-aufgaben" rows="7">${esc(d.aufgaben)}</textarea></label>
-        <div class="knoepfe">
-          ${d.id ? `<button type="button" class="gefahr" data-a="routine-loeschen">${d.loeschen ? "Wirklich löschen?" : "🗑 Löschen"}</button>` : ""}
-          <span class="platz"></span>
-          <button type="button" class="zweit" data-a="schliessen">Abbrechen</button>
-          <button type="button" data-a="routine-speichern">Speichern</button>
-        </div>`, "breit");
-    }
+    if (d.typ === "routine") return this._routineDialog();
     if (d.typ === "belohnung") {
       return huelle(`
         <h2>${d.id ? "Belohnung bearbeiten" : "Neue Belohnung"}</h2>
@@ -2241,6 +2462,70 @@ FamilienzentralePanel.css = `
   .ktext { flex:1; text-align:left; font-size:1.3em; }
   .kpunkte { flex:none; font-size:1.2em; }
   .kachel.erledigt .ktext { text-decoration:line-through; text-decoration-thickness:3px; opacity:.6; }
+  .kachel-neu { min-height:64px; border-radius:16px; border:3px dashed var(--fz-linie); color:var(--fz-grau);
+    font-weight:800; font-size:1.1em; }
+  .kachel-neu:hover { border-color:var(--fz-grau); }
+
+  /* Routine-Formular: Schritte, große Knöpfe, Aufgaben-Zeilen, Vorschläge */
+  .karte.ro { max-width:760px; }
+  .ro-schritt { display:flex; align-items:center; flex-wrap:wrap; gap:8px; font-weight:800; font-size:1.15em; margin:18px 0 8px; }
+  .ro-schritt.klein { font-size:1em; margin-top:16px; }
+  .ro-schritt .grau { font-weight:600; font-size:.8em; }
+  .ro-nr { width:28px; height:28px; border-radius:50%; background:var(--fz-akzent); color:#fff; font-size:.85em;
+    display:inline-flex; align-items:center; justify-content:center; flex:none; }
+  .ro-zeiten { display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; }
+  .ro-wahl { display:flex; flex-direction:column; align-items:center; gap:4px; padding:12px 6px; border-radius:18px;
+    background:var(--fz-grund); border:3px solid transparent; font-weight:800; font-size:1.1em; }
+  .ro-wahl .gross { font-size:2.2em; line-height:1; }
+  .ro-wahl.an { border-color:var(--fz-akzent); background:color-mix(in srgb, var(--fz-akzent) 14%, var(--fz-karte)); }
+  .ro-personen { display:flex; flex-wrap:wrap; gap:10px; }
+  .ro-person { display:flex; align-items:center; gap:8px; padding:5px 16px 5px 5px; border-radius:999px; font-weight:800;
+    background:var(--fz-grund); border:3px solid transparent; }
+  .ro-person.an { border-color:var(--ring); background:color-mix(in srgb, var(--ring) 14%, var(--fz-karte)); }
+  .ro-liste { display:flex; flex-direction:column; gap:8px; }
+  .ro-leer { margin:4px 0; }
+  .ro-zeile { display:flex; align-items:center; gap:8px; padding:6px; border-radius:16px; background:var(--fz-grund); }
+  .ro-ebtn { width:56px; height:56px; flex:none; border-radius:14px; background:var(--fz-karte); font-size:2em; line-height:1;
+    display:flex; align-items:center; justify-content:center; border:2px dashed var(--fz-linie); }
+  .ro-ebtn.offen { border:2px solid var(--fz-akzent); }
+  .formular .ro-zeile input { flex:1; min-width:0; background:var(--fz-karte); font-weight:700; }
+  .ro-sterne { display:flex; align-items:center; gap:2px; flex:none; }
+  .ro-sterne button { width:36px; height:36px; border-radius:50%; background:var(--fz-karte); font-size:1.2em; font-weight:800; }
+  .ro-sterne b { min-width:4.6em; text-align:center; font-size:.85em; letter-spacing:-.15em; white-space:nowrap; }
+  .ro-klein { width:36px; height:36px; flex:none; border-radius:50%; display:inline-flex; align-items:center; justify-content:center;
+    color:var(--fz-grau); }
+  .ro-klein ha-icon { --mdc-icon-size:20px; }
+  .ro-weg { color:var(--error-color, #db4437); }
+  .ro-picker { display:flex; flex-wrap:wrap; gap:4px; padding:10px; border-radius:14px; background:var(--fz-karte);
+    border:2px solid var(--fz-akzent); }
+  .ro-picker button { width:50px; height:50px; border-radius:12px; font-size:1.8em; line-height:1; }
+  .ro-picker button:hover, .ro-picker button.an { background:var(--fz-grund); }
+  .ro-picker button.vor { background:color-mix(in srgb, var(--fz-akzent) 16%, var(--fz-karte)); }
+  .ro-picker .titel { width:100%; font-size:.85em; font-weight:800; color:var(--fz-grau); margin-top:2px; }
+  .ro-eigene { width:100%; margin-top:8px; padding:12px; border-radius:14px; border:2px dashed var(--fz-linie);
+    color:var(--fz-grau); font-weight:800; font-size:1.05em; }
+  .ro-vorschlaege { display:flex; flex-wrap:wrap; gap:8px; }
+  .ro-chip { display:inline-flex; align-items:center; gap:6px; padding:7px 14px 7px 10px; border-radius:999px;
+    background:var(--fz-grund); border:2px solid transparent; font-weight:700; }
+  .ro-chip span { font-size:1.4em; line-height:1; }
+  .ro-chip.andere { opacity:.6; }
+  .ro-chip.drin { opacity:1; background:color-mix(in srgb, #43a047 16%, var(--fz-karte)); border-color:#43a047; }
+  .ro-mehr { margin-top:16px; padding:10px 12px; border-radius:14px; background:var(--fz-grund); }
+  .ro-mehr summary { cursor:pointer; font-weight:700; color:var(--fz-grau); }
+  .ro-mehr summary b { color:var(--fz-text); }
+  .ro-namezeile { display:flex; align-items:center; gap:10px; margin:10px 0 6px; }
+  .formular .ro-namezeile input { flex:1; min-width:0; }
+  @media (max-width: 600px) {
+    .ro-zeile { flex-wrap:wrap; }
+    .formular .ro-zeile input { flex:1 1 calc(100% - 70px); }
+    .ro-sterne { margin-left:auto; }
+  }
+  @media (pointer: coarse), (min-width: 1600px) {
+    .ro-sterne button, .ro-klein { width:44px; height:44px; }
+    .ro-ebtn { width:62px; height:62px; }
+    .ro-chip { padding:10px 16px 10px 12px; font-size:1.05em; }
+  }
+
   @container fz (max-width: 760px) {
     .kinder.routinen-spalten { grid-template-columns:1fr; }
     .kachel { min-height:68px !important; padding:8px 12px; gap:12px; }
