@@ -898,6 +898,22 @@ class FamilienzentralePanel extends HTMLElement {
       });
       return true;
     }
+    if (a === "schatz-start") {
+      const person = this._kind;
+      const liste = this._startpaket();
+      if (!person || !liste.length) return true;
+      this._mitPin(async (pin) => {
+        for (const v of liste) {
+          const ok = await this._kws({
+            type: "familienzentrale/kinder/belohnung_speichern", pin, name: v.name, emoji: v.emoji,
+            kosten: v.kosten, sandi_sterne: v.sandi || 0, fuer: [person],
+          });
+          if (!ok) return;
+        }
+        this._zeigeToast(`✨ ${liste.length} Schätze für ${this._kindName(person)} angelegt`);
+      });
+      return true;
+    }
     if (a.startsWith("schatz-weg-")) { this._kdlg = { typ: "schatz-weg", id: a.slice(11) }; this._zeichneDialog(); return true; }
     if (a === "belohnung-speichern") { this._belohnungSpeichern(); return true; }
     if (a === "belohnung-loeschen") {
@@ -1091,6 +1107,15 @@ class FamilienzentralePanel extends HTMLElement {
       d.aufgaben = VORLAGE[g][z].map((n) => VORSCHLAEGE.find((v) => v.name === n && v.gruppe === g))
         .filter(Boolean).map((v) => this._neueZeile(v));
     }
+  }
+
+  // Schatz-Vorlagen, die diese Person noch nicht hat (Kind- bzw. Eltern-Vorlagen)
+  _startpaket(eid = this._kind) {
+    if (!eid || !this._kinder) return [];
+    const g = this._gruppe(eid);
+    const vorhanden = new Set(Object.values(this._kinder.belohnungen || {})
+      .filter((b) => !b.fuer?.length || b.fuer.includes(eid)).map((b) => b.name.toLowerCase()));
+    return SCHATZ_VORLAGEN.filter((v) => v.gruppe === g && !vorhanden.has(v.name.toLowerCase()));
   }
 
   // "kind" oder "eltern" – bestimmt, welche Vorlagen passen
@@ -1396,7 +1421,12 @@ class FamilienzentralePanel extends HTMLElement {
       </button>`;
     }
     if (this._bearbeiten || !belohnungen.length) {
-      html += `<button class="rkarte neu" data-a="belohnung-neu"><span class="eemoji">＋</span><b>Neue Belohnung</b></button>`;
+      html += `<button class="rkarte neu" data-a="belohnung-neu"><span class="eemoji">＋</span><b>Neuer Schatz</b></button>`;
+      if (this._startpaket().length) {
+        html += `<button class="rkarte neu ki" data-a="schatz-start"><span class="eemoji">✨</span>
+          <b>Startpaket für ${esc(this._kindName(this._kind))}</b>
+          <span class="grau">${this._startpaket().length} passende Schätze anlegen</span></button>`;
+      }
     }
     html += `</div>`;
     const verlauf = (k.verlauf || []).filter((v) => v.person === this._kind).slice(-20).reverse();
